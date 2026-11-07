@@ -1,3 +1,2 @@
-export default function Page() {
-  return <main>Orders and status</main>;
-}
+import ScreenPage from "@/components/layout/ScreenPage";
+export default function Page() { return <ScreenPage />; }

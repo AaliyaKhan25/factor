@@ -1,3 +1,2 @@
-export default function Page() {
-  return <main>Audit cycle: mark assets and view discrepancies</main>;
-}
+import ScreenPage from "@/components/layout/ScreenPage";
+export default function Page() { return <ScreenPage />; }

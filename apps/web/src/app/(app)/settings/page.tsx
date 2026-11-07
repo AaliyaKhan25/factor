@@ -1,3 +1,2 @@
-export default function Page() {
-  return <main>Business details, UPI ID, language, Google Sheet connection</main>;
-}
+import ScreenPage from "@/components/layout/ScreenPage";
+export default function Page() { return <ScreenPage />; }

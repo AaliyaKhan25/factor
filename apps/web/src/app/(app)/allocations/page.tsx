@@ -1,3 +1,2 @@
-export default function Page() {
-  return <main>Allocate, transfer, return</main>;
-}
+import ScreenPage from "@/components/layout/ScreenPage";
+export default function Page() { return <ScreenPage />; }

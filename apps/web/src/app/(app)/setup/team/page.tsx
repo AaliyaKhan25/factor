@@ -1,3 +1,2 @@
-export default function Page() {
-  return <main>Team directory, pending join requests, permissions</main>;
-}
+import ScreenPage from "@/components/layout/ScreenPage";
+export default function Page() { return <ScreenPage />; }

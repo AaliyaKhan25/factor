@@ -1,3 +1,2 @@
-export default function Page() {
-  return <main>Customer book</main>;
-}
+import ScreenPage from "@/components/layout/ScreenPage";
+export default function Page() { return <ScreenPage />; }

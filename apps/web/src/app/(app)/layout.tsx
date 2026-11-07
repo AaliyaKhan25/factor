@@ -1,4 +1,5 @@
-// The AppShell (bottom navigation) goes here once it is built.
+import AppShell from "@/components/layout/AppShell";
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  return <div>{children}</div>;
+  return <AppShell>{children}</AppShell>;
 }

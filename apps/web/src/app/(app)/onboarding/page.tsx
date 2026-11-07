@@ -1,3 +1,2 @@
-export default function Page() {
-  return <main>Create business: details and generated business code</main>;
-}
+import ScreenPage from "@/components/layout/ScreenPage";
+export default function Page() { return <ScreenPage />; }

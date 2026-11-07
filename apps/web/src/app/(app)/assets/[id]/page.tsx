@@ -1,3 +1,2 @@
-export default function Page() {
-  return <main>Asset detail and history</main>;
-}
+import ScreenPage from "@/components/layout/ScreenPage";
+export default function Page() { return <ScreenPage />; }

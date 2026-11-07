@@ -1,3 +1,2 @@
-export default function Page() {
-  return <main>Customer pay page: amount, QR, UPI button, policy acceptance</main>;
-}
+import PublicScreen from "@/components/layout/PublicScreen";
+export default function Page() { return <PublicScreen />; }

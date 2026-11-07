@@ -1,3 +1,2 @@
-export default function Page() {
-  return <main>Pending payments and statement matching</main>;
-}
+import ScreenPage from "@/components/layout/ScreenPage";
+export default function Page() { return <ScreenPage />; }

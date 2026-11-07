@@ -1,4 +1,6 @@
 import "./globals.css";
+import "./auth-public.css";
+import "./forms.css";
 
 export const metadata = {
   title: "Factor",
