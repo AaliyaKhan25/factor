@@ -1,0 +1,28 @@
+{
+  "note": "Fictional conversations for demos and tests.",
+  "conversations": [
+    {"id": "c1", "channel": "instagram", "customer": "@riya.knits", "scenario": "standard order, should be answered by the agent",
+     "messages": [
+       {"from": "customer", "text": "hi! is the sage green tote available? need it by saturday"},
+       {"from": "customer", "text": "how much with delivery to pune?"}]},
+    {"id": "c2", "channel": "whatsapp", "customer": "+91 90000 00001", "scenario": "Hinglish order, agent",
+     "messages": [
+       {"from": "customer", "text": "didi mujhe 2 bunny chahiye, ek pink ek white, kitne ka padega?"}]},
+    {"id": "c3", "channel": "instagram", "customer": "@aman.gifts", "scenario": "custom request, must go to the owner",
+     "messages": [
+       {"from": "customer", "text": "can you make a bag with my dog's name on it, in a custom size?"}]},
+    {"id": "c4", "channel": "whatsapp", "customer": "+91 90000 00002", "scenario": "bargaining, must go to the owner",
+     "messages": [
+       {"from": "customer", "text": "bhaiya 3 totes lungi toh thoda kam karo, 15 percent discount milega?"}]},
+    {"id": "c5", "channel": "instagram", "customer": "@neha.k", "scenario": "payment claim, check against the statement",
+     "messages": [
+       {"from": "customer", "text": "payment done for ORD-1042, sending screenshot"},
+       {"from": "customer", "text": "[screenshot: Rs 1250.37, reference 412345678901]"}]},
+    {"id": "c6", "channel": "whatsapp", "customer": "+91 90000 00003", "scenario": "not-delivered complaint, check tracking and evidence",
+     "messages": [
+       {"from": "customer", "text": "order ORD-1050 not delivered yet, i want a refund"}]},
+    {"id": "c7", "channel": "instagram", "customer": "@karan.s", "scenario": "ambiguous, agent asks what they mean",
+     "messages": [
+       {"from": "customer", "text": "price?"}]}
+  ]
+}

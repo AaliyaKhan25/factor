@@ -1,0 +1,9 @@
+{
+  "name": "Factor",
+  "short_name": "Factor",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1f3a5f",
+  "icons": []
+}

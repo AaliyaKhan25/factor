@@ -1,0 +1,1 @@
+"""Forbidden transitions are rejected."""

@@ -1,0 +1,12 @@
+{
+  "items": [
+    {"name": "Sage green tote", "type": "ready_stock", "price": 850, "quantity": 3},
+    {"name": "Amigurumi bunny", "type": "made_to_order", "price": 600, "capacity_per_week": 5, "lead_time_days": 7},
+    {"name": "Name keychain", "type": "made_to_order", "price": 250, "capacity_per_week": 10, "lead_time_days": 3},
+    {"name": "Event backdrop", "type": "rental", "price_per_day": 1500}
+  ],
+  "price_rules": [
+    {"applies_to": "Amigurumi bunny", "if": "size == 'large'", "add": 150},
+    {"applies_to": "*", "if": "rush", "add": 200}
+  ]
+}
