@@ -24,7 +24,7 @@ export default function OnboardingPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const wasRejected = user?.memberships.some((m) => m.status === "rejected" || m.status === "removed");
+  const wasRejected = user?.memberships.some((m: { status: string }) => m.status === "rejected" || m.status === "removed");
 
   async function run(fn: () => Promise<unknown>) {
     setBusy(true);

@@ -8,6 +8,8 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import ErrorText from "@/components/ui/ErrorText";
 import Input, { fieldClass } from "@/components/ui/Input";
+import Icon from "@/components/ui/Icon";
+import VoiceOrderModal from "@/components/voice/VoiceOrderModal";
 
 type Line = { item: string; qty: string };
 
@@ -22,6 +24,7 @@ export default function NewOrderPage() {
   const [lines, setLines] = useState<Line[]>([{ item: "", qty: "1" }]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [voiceModalOpen, setVoiceModalOpen] = useState(false);
 
   const items = catalog ?? [];
   const total = lines.reduce((sum, l) => {
@@ -55,7 +58,19 @@ export default function NewOrderPage() {
 
   return (
     <form onSubmit={submit} className="mx-auto max-w-2xl space-y-4">
-      <h1 className="font-serif text-3xl font-bold">New order</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="font-display text-3xl font-extrabold tracking-tight text-ink">New order</h1>
+        <button
+          type="button"
+          onClick={() => setVoiceModalOpen(true)}
+          className="inline-flex items-center gap-2 rounded-xl border border-brand bg-white px-3.5 py-2 text-xs font-bold text-ink shadow-sm transition-all hover:bg-brand-soft hover:shadow-glow active:scale-95"
+        >
+          <span className="grid h-5 w-5 place-items-center rounded-md bg-brand text-brand-dark">
+            <Icon name="mic" className="h-3 w-3" />
+          </span>
+          <span>Speak Order (Gnani.ai)</span>
+        </button>
+      </div>
       <Card className="space-y-3">
         <h2 className="font-bold">Customer</h2>
         <Input label="Name" required value={name} onChange={(e) => setName(e.target.value)} />
@@ -89,6 +104,13 @@ export default function NewOrderPage() {
       </Card>
       <ErrorText message={error} />
       <Button type="submit" disabled={busy} className="w-full">{busy ? "Saving…" : "Create order"}</Button>
+
+      {voiceModalOpen && (
+        <VoiceOrderModal
+          onClose={() => setVoiceModalOpen(false)}
+          onOrderCreated={(order) => router.push(`/orders/${order.id}`)}
+        />
+      )}
     </form>
   );
 }

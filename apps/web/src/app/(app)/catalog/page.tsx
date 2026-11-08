@@ -10,6 +10,7 @@ import Card from "@/components/ui/Card";
 import ErrorText from "@/components/ui/ErrorText";
 import Input, { fieldClass } from "@/components/ui/Input";
 import Modal from "@/components/ui/Modal";
+import Icon from "@/components/ui/Icon";
 
 function ItemForm({ item, onDone }: { item?: CatalogItem; onDone: () => void }) {
   const [name, setName] = useState(item?.name ?? "");
@@ -67,6 +68,7 @@ export default function CatalogPage() {
   const { business } = useAuth();
   const { data, loading, reload } = usePolling(() => api<CatalogItem[]>("/catalog"), 10000);
   const [editing, setEditing] = useState<CatalogItem | "new" | null>(null);
+  const [search, setSearch] = useState("");
   const canEdit = business?.your_permissions.includes("edit_prices");
 
   async function remove(i: CatalogItem) {
@@ -75,30 +77,154 @@ export default function CatalogPage() {
     reload();
   }
 
+  const items = data ?? [];
+  const filtered = items.filter((i) => !search || i.name.toLowerCase().includes(search.toLowerCase().trim()));
+
+  const readyStockItems = items.filter((i) => i.kind === "ready_stock");
+  const totalStockUnits = readyStockItems.reduce((acc, i) => acc + (i.available || 0), 0);
+  const lowStockCount = items.filter((i) => i.kind === "ready_stock" && i.available <= 2).length;
+
   return (
-    <div className="mx-auto max-w-5xl space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="mx-auto max-w-5xl space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="font-serif text-3xl font-bold">Catalog</h1>
-          <p className="text-sm text-stone-600">What the agent can quote and book. Prices and stock come only from here.</p>
+          <h1 className="font-display text-3xl font-extrabold tracking-tight text-ink">Catalog</h1>
+          <p className="mt-0.5 text-xs text-stone-500">Products and pricing quoted and booked by the AI agent.</p>
         </div>
-        {canEdit ? <Button onClick={() => setEditing("new")}>Add item</Button> : null}
+        {canEdit ? (
+          <Button
+            onClick={() => setEditing("new")}
+            className="inline-flex items-center gap-1.5 shadow-sm hover:shadow-glow"
+          >
+            <Icon name="plus" className="h-4 w-4" /> Add item
+          </Button>
+        ) : null}
       </div>
-      {loading ? <p className="text-stone-500">Loading…</p> : !data?.length ? (
-        <Card className="text-center text-stone-600">Your catalog is empty. Add what you sell so the agent can answer price and stock questions.</Card>
+
+      {/* Inventory Statistical Summary */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Card className="!p-3.5">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Total Products</p>
+          <p className="mt-1 font-display text-xl font-bold text-ink">{items.length}</p>
+          <p className="text-[11px] text-stone-400">In catalog register</p>
+        </Card>
+        <Card className="!p-3.5">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Units in Stock</p>
+          <p className="mt-1 font-display text-xl font-bold text-ink">{totalStockUnits}</p>
+          <p className="text-[11px] text-stone-400">Ready to dispatch</p>
+        </Card>
+        <Card className="!p-3.5">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Made to Order</p>
+          <p className="mt-1 font-display text-xl font-bold text-ink">
+            {items.filter((i) => i.kind === "made_to_order").length}
+          </p>
+          <p className="text-[11px] text-stone-400">Custom capacity items</p>
+        </Card>
+        <Card className="!p-3.5">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Stock Status</p>
+            {lowStockCount > 0 ? (
+              <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded-full">
+                {lowStockCount} low
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold text-emerald-700">Healthy</span>
+            )}
+          </div>
+          <p className="mt-1 font-display text-xl font-bold text-ink">
+            {items.length - lowStockCount} / {items.length}
+          </p>
+          <p className="text-[11px] text-stone-400">Well-stocked items</p>
+        </Card>
+      </div>
+
+      {/* Search Input */}
+      {items.length > 0 && (
+        <div className="relative max-w-sm">
+          <input
+            type="text"
+            placeholder="Search catalog items..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-9 w-full rounded-xl border border-line bg-white pl-8 pr-3 text-xs placeholder:text-stone-400 focus:border-brand-dark focus:outline-none"
+          />
+          <span className="absolute left-2.5 top-2.5 text-stone-400">
+            <Icon name="tag" className="h-4 w-4" />
+          </span>
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-2.5 top-2.5 text-stone-400 hover:text-ink"
+            >
+              <Icon name="close" className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-32 rounded-2xl bg-stone-100 animate-pulse" />
+          ))}
+        </div>
+      ) : !filtered.length ? (
+        <Card className="text-center py-10">
+          <span className="mx-auto mb-2 grid h-12 w-12 place-items-center rounded-2xl bg-cream text-stone-400">
+            <Icon name="tag" className="h-6 w-6" />
+          </span>
+          <p className="font-bold text-ink">
+            {items.length ? "No items matching your search" : "Your catalog is empty"}
+          </p>
+          <p className="mt-1 text-xs text-stone-500 max-w-sm mx-auto">
+            {items.length
+              ? "Try typing a different item name."
+              : "Add what you sell or make so the AI agent can quote prices and check stock automatically."}
+          </p>
+        </Card>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
-          {data.map((i) => (
-            <Card key={i.id}>
+          {filtered.map((i) => (
+            <Card key={i.id} hoverable className="space-y-3">
               <div className="flex items-start justify-between gap-2">
-                <div><p className="font-bold">{i.name}</p><Badge tone={i.kind === "ready_stock" ? "lime" : "blue"}>{i.kind === "ready_stock" ? "Ready stock" : "Made to order"}</Badge></div>
-                <p className="font-serif text-2xl font-bold">{rupees(i.price_paise)}</p>
+                <div>
+                  <p className="font-bold text-ink text-base">{i.name}</p>
+                  <div className="mt-1">
+                    <Badge tone={i.kind === "ready_stock" ? "lime" : "blue"}>
+                      {i.kind === "ready_stock" ? "Ready stock" : "Made to order"}
+                    </Badge>
+                  </div>
+                </div>
+                <p className="font-display text-2xl font-bold text-ink">{rupees(i.price_paise)}</p>
               </div>
-              <p className="mt-3 text-sm text-stone-600">
-                {i.kind === "ready_stock" ? `${i.available} in stock` : `${i.available} of ${i.capacity} slots free`}
-                {i.lead_time_days != null ? ` · ${i.lead_time_days} days` : ""}
-              </p>
-              {canEdit ? <div className="mt-3 flex gap-2"><Button variant="secondary" onClick={() => setEditing(i)}>Edit</Button><Button variant="ghost" onClick={() => remove(i)}>Remove</Button></div> : null}
+
+              <div className="rounded-xl bg-cream/50 p-2.5 text-xs text-stone-600 flex items-center justify-between">
+                <span>
+                  {i.kind === "ready_stock" ? (
+                    <span className={i.available <= 2 ? "font-bold text-amber-800" : "font-medium text-stone-700"}>
+                      <b>{i.available}</b> units left in stock
+                    </span>
+                  ) : (
+                    <span>
+                      <b>{i.available}</b> of {i.capacity} custom slots free
+                    </span>
+                  )}
+                </span>
+                {i.lead_time_days != null && (
+                  <span className="text-[11px] text-stone-400">⏱ {i.lead_time_days} days lead</span>
+                )}
+              </div>
+
+              {canEdit ? (
+                <div className="flex items-center gap-2 pt-1 border-t border-line/60">
+                  <Button variant="secondary" className="!min-h-8 !text-xs" onClick={() => setEditing(i)}>
+                    Edit
+                  </Button>
+                  <Button variant="ghost" className="!min-h-8 !text-xs text-stone-500" onClick={() => remove(i)}>
+                    Remove
+                  </Button>
+                </div>
+              ) : null}
             </Card>
           ))}
         </div>

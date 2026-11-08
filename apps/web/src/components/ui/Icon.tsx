@@ -15,11 +15,43 @@ const PATHS: Record<string, string> = {
   wallet: "M3 7h16a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7zm0 0V6a2 2 0 012-2h11M17 14h.01",
   truck: "M3 6h11v10H3zM14 9h4l3 3v4h-7M7 19a2 2 0 100-4 2 2 0 000 4zM17 19a2 2 0 100-4 2 2 0 000 4z",
   arrow: "M5 12h14M13 6l6 6-6 6",
+  chart: "M3 3v18h18M18 17V9M13 17V5M8 17v-3",
+  trending: "M23 6l-9.5 9.5-5-5L1 18M17 6h6v6",
+  calendar: "M19 4H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2zM16 2v4M8 2v4M3 10h18",
+  refresh: "M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15",
+  filter: "M22 3H2l8 9.46V19l4 2v-8.54L22 3z",
+  target: "M12 22a10 10 0 100-20 10 10 0 000 20zM12 18a6 6 0 100-12 6 6 0 000 12zM12 14a2 2 0 100-4 2 2 0 000 4z",
+  clock: "M12 22a10 10 0 100-20 10 10 0 000 20zM12 6v6l4 2",
+  star: "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z",
+  zap: "M13 2L3 14h9l-1 8 10-12h-9l1-8z",
+  info: "M12 22a10 10 0 100-20 10 10 0 000 20zM12 16v-4M12 8h.01",
+  close: "M18 6L6 18M6 6l12 12",
+  mic: "M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3zM19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8",
+  waveform: "M3 10v4M7 6v12M11 3v18M15 7v10M19 10v4",
 };
 
-export default function Icon({ name, className = "h-5 w-5" }: { name: string; className?: string }) {
+export default function Icon({
+  name,
+  className = "h-5 w-5",
+  size,
+}: {
+  name: string;
+  className?: string;
+  size?: number;
+}) {
+  const style = size ? { width: size, height: size } : undefined;
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+    <svg
+      style={style}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
       <path d={PATHS[name] ?? PATHS.spark} />
     </svg>
   );

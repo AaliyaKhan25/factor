@@ -31,7 +31,7 @@ class LineIn(BaseModel):
 class OrderCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     customer: CustomerIn
-    source: Literal["instagram", "whatsapp", "manual"] = "manual"
+    source: Literal["instagram", "whatsapp", "manual", "voice"] = "manual"
     items: list[LineIn] = Field(min_length=1, max_length=50)
     note: str = Field(default="", max_length=500)
 

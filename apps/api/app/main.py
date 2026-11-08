@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from . import models  # noqa: F401  (registers every model on Base.metadata)
 from .config import settings
 from .db import Base, engine
-from .routers import auth, business, catalog, channels, customers, dashboard, inbox, orders, team
+from .routers import auth, business, catalog, channels, customers, dashboard, inbox, orders, team, voice
 
 
 @asynccontextmanager
@@ -33,6 +33,7 @@ app.include_router(inbox.router)
 app.include_router(channels.router)
 app.include_router(dashboard.router)
 app.include_router(customers.router)
+app.include_router(voice.router)
 
 
 @app.get("/health")

@@ -7,6 +7,7 @@ import { initials } from "@/lib/format";
 import { usePolling } from "@/hooks/usePolling";
 import Brand from "@/components/ui/Brand";
 import Icon from "@/components/ui/Icon";
+import FloatingVoiceButton from "@/components/voice/FloatingVoiceButton";
 
 type Item = { href: string; label: string; icon: string; badge?: number; admin?: boolean };
 
@@ -87,6 +88,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </header>
 
       <main className="px-4 pb-28 pt-6 md:px-8 md:pb-10">{children}</main>
+
+      <FloatingVoiceButton />
 
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 backdrop-blur md:hidden">
         <ul className="flex">

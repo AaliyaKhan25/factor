@@ -11,6 +11,9 @@ import Card from "@/components/ui/Card";
 import ChannelBadge from "@/components/ui/ChannelBadge";
 import ErrorText from "@/components/ui/ErrorText";
 import StatusBadge from "@/components/orders/StatusBadge";
+import Icon from "@/components/ui/Icon";
+
+const STAGES = ["new", "confirmed", "packed", "shipped", "delivered"];
 
 const LABEL: Record<string, string> = { confirmed: "Confirm order", packed: "Mark packed", shipped: "Mark shipped", delivered: "Mark delivered", cancelled: "Cancel order" };
 
@@ -36,9 +39,48 @@ export default function OrderDetailPage() {
     <div className="mx-auto max-w-3xl space-y-4">
       <Link href="/orders" className="text-sm font-semibold text-brand-dark">← All orders</Link>
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="font-serif text-3xl font-bold">{o.code}</h1>
+        <h1 className="font-display text-3xl font-extrabold tracking-tight text-ink">{o.code}</h1>
         <StatusBadge status={o.status} /><Badge tone={o.payment_status === "paid" ? "green" : "amber"}>{o.payment_status}</Badge><ChannelBadge channel={o.source} />
       </div>
+
+      {/* Visual Order Progress Bar Stepper */}
+      <Card className="!p-4">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-stone-500 mb-3">Fulfillment Progress</p>
+        <div className="flex items-center justify-between relative px-2">
+          <div className="absolute top-4 left-6 right-6 h-1 bg-stone-200 -z-0" />
+          {STAGES.map((step, idx) => {
+            const currentIdx = STAGES.indexOf(o.status);
+            const isCompleted = o.status !== "cancelled" && currentIdx > idx;
+            const isCurrent = o.status === step;
+            const isCancelled = o.status === "cancelled";
+
+            return (
+              <div key={step} className="flex flex-col items-center relative z-10">
+                <span
+                  className={`grid h-8 w-8 place-items-center rounded-full text-xs font-bold transition-all shadow-xs ${
+                    isCurrent
+                      ? "bg-brand text-brand-dark ring-4 ring-brand-soft ring-offset-1 font-bold scale-110"
+                      : isCompleted
+                      ? "bg-brand-dark text-brand-soft"
+                      : isCancelled && idx === currentIdx
+                      ? "bg-red-500 text-white"
+                      : "bg-white text-stone-400 border border-line"
+                  }`}
+                >
+                  {isCompleted ? <Icon name="check" className="h-4 w-4" /> : idx + 1}
+                </span>
+                <span
+                  className={`mt-1.5 text-[10px] font-semibold capitalize ${
+                    isCurrent ? "font-bold text-ink" : "text-stone-500"
+                  }`}
+                >
+                  {step}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
 
       <Card>
         <p className="text-sm text-stone-500">Customer</p>

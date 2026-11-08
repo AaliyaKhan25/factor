@@ -145,3 +145,27 @@ export type Dashboard = {
   customers: number;
 };
 export type Channel = { id: number; channel: "instagram" | "whatsapp"; label: string; verify_token: string; webhook_path: string };
+
+export type VoiceOrderResult = {
+  success: boolean;
+  provider: string;
+  transcript: string;
+  language: string;
+  parsed: {
+    raw_text: string;
+    customer: { name: string; phone: string | null; handle: string | null };
+    items: { name: string; quantity: number; unit_price_paise: number; total_paise: number }[];
+    total_price_paise: number;
+    source: string;
+    confidence: number;
+  };
+  order: {
+    id: number;
+    code: string;
+    status: string;
+    payment_status: string;
+    total_paise: number;
+    customer_name: string;
+    created_at: string;
+  };
+};
