@@ -1,42 +1,106 @@
 "use client";
-
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
-import Icon, { type IconName } from "@/components/ui/Icon";
+import { usePathname, useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth";
+import { api, InboxCounts } from "@/lib/api";
+import { initials } from "@/lib/format";
+import { usePolling } from "@/hooks/usePolling";
+import Brand from "@/components/ui/Brand";
+import Icon from "@/components/ui/Icon";
 
-type NavItem = { href: string; label: string; icon: IconName; count?: string };
-const groups: { label: string; items: NavItem[] }[] = [
-  { label: "WORKSPACE", items: [{ href: "/dashboard", label: "Overview", icon: "grid" }, { href: "/inbox", label: "Inbox", icon: "inbox", count: "4" }, { href: "/orders", label: "Orders", icon: "package" }, { href: "/catalog", label: "Catalog", icon: "box" }, { href: "/customers", label: "Customers", icon: "users" }] },
-  { label: "OPERATIONS", items: [{ href: "/assets", label: "Assets", icon: "box" }, { href: "/allocations", label: "Allocations", icon: "arrow" }, { href: "/bookings", label: "Bookings", icon: "calendar" }, { href: "/payments", label: "Payments", icon: "wallet", count: "2" }, { href: "/cases", label: "Cases & returns", icon: "clock" }] },
-  { label: "INSIGHTS", items: [{ href: "/reports", label: "Reports", icon: "chart" }, { href: "/activity", label: "Activity log", icon: "trend" }] },
-  { label: "MANAGE", items: [{ href: "/transfers", label: "Transfers", icon: "arrow" }, { href: "/audits", label: "Audits", icon: "check" }, { href: "/setup/team", label: "Team", icon: "users" }, { href: "/setup/categories", label: "Categories", icon: "box" }, { href: "/setup/departments", label: "Departments", icon: "grid" }, { href: "/notifications", label: "Notifications", icon: "bell" }] },
-];
-const mobileItems = [groups[0].items[0], groups[0].items[1], groups[0].items[2], groups[1].items[0], groups[1].items[3]];
+type Item = { href: string; label: string; icon: string; badge?: number; admin?: boolean };
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const pageLabel = groups.flatMap((g) => g.items).find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))?.label ?? "Workspace";
-  const links = (mobile = false) => (mobile ? mobileItems : groups.flatMap((group) => group.items)).map((item) => {
-    const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`));
-    return <Link key={item.href} href={item.href} onClick={() => setDrawerOpen(false)} className={`nav-link ${active ? "nav-link-active" : ""} ${mobile ? "mobile-nav-link" : ""}`}><span className="nav-icon"><Icon name={item.icon as IconName} size={19} /></span><span>{mobile ? item.label === "Overview" ? "Home" : item.label : item.label}</span>{item.count && !mobile && <span className="nav-count">{item.count}</span>}</Link>;
-  });
+  const { business, isAdmin, user } = useAuth();
+  const path = usePathname();
+  const router = useRouter();
+  const counts = usePolling(() => api<InboxCounts>("/inbox/counts"), 5000);
+  const needs = counts.data?.needs_owner ?? 0;
 
-  return <div className="app-frame">
-    <aside className="sidebar">
-      <Link href="/dashboard" className="brand-lockup"><span className="brand-mark">f</span><span className="brand-name">factor<span className="brand-period">.</span></span></Link>
-      <button className="business-switcher"><span className="business-avatar">S</span><span className="business-name-wrap"><strong>Studio Aarna</strong><small>Owner workspace</small></span><span className="switch-chevron">⌄</span></button>
-      <Link href="/orders/new" className="sidebar-create"><Icon name="plus" size={18} /> Create order <span>⌘ K</span></Link>
-      <nav className="sidebar-nav">{groups.map((group) => <div className="nav-group" key={group.label}><p className="nav-group-label">{group.label}</p>{group.items.map((item) => {
-        const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`));
-        return <Link key={item.href} href={item.href} className={`nav-link ${active ? "nav-link-active" : ""}`}><span className="nav-icon"><Icon name={item.icon as IconName} size={19} /></span><span>{item.label}</span>{item.count && <span className="nav-count">{item.count}</span>}</Link>;
-      })}</div>)}</nav>
-      <div className="sidebar-bottom"><div className="plan-card"><span className="plan-spark"><Icon name="spark" size={17} /></span><strong>Make every day flow.</strong><p>Your business, all in one place.</p><Link href="/reports">Explore insights <Icon name="arrow" size={14} /></Link></div><Link href="/settings" className={`nav-link ${pathname.startsWith("/settings") ? "nav-link-active" : ""}`}><span className="nav-icon"><Icon name="settings" size={19} /></span><span>Settings</span></Link><div className="account-chip"><div className="account-avatar">RK</div><span><strong>Riya Kapoor</strong><small>Business owner</small></span><span className="account-more">•••</span></div></div>
-    </aside>
-    {drawerOpen && <button className="drawer-scrim" aria-label="Close navigation" onClick={() => setDrawerOpen(false)} />}
-    <div className={`mobile-drawer ${drawerOpen ? "mobile-drawer-open" : ""}`}><div className="drawer-head"><Link href="/dashboard" className="brand-lockup"><span className="brand-mark">f</span><span className="brand-name">factor<span className="brand-period">.</span></span></Link><button className="icon-button" onClick={() => setDrawerOpen(false)} aria-label="Close"><Icon name="close" /></button></div><button className="business-switcher"><span className="business-avatar">S</span><span className="business-name-wrap"><strong>Studio Aarna</strong><small>Owner workspace</small></span><span className="switch-chevron">⌄</span></button><nav className="sidebar-nav">{groups.map((group) => <div className="nav-group" key={group.label}><p className="nav-group-label">{group.label}</p>{group.items.map((item) => { const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`)); return <Link key={item.href} href={item.href} onClick={() => setDrawerOpen(false)} className={`nav-link ${active ? "nav-link-active" : ""}`}><span className="nav-icon"><Icon name={item.icon as IconName} size={19} /></span><span>{item.label}</span></Link>; })}</div>)}<Link href="/settings" className="nav-link"><span className="nav-icon"><Icon name="settings" size={19} /></span><span>Settings</span></Link></nav></div>
-    <div className="app-column"><header className="topbar"><div className="topbar-left"><button className="icon-button menu-button" onClick={() => setDrawerOpen(true)} aria-label="Open navigation"><Icon name="menu" /></button><div className="breadcrumbs"><span>Workspace</span><Icon name="chevron" size={14} /><strong>{pageLabel}</strong></div></div><div className="topbar-actions"><label className="global-search"><Icon name="search" size={18} /><input aria-label="Search" placeholder="Search anything..." /><kbd>⌘ K</kbd></label><Link href="/notifications" className="icon-button notification-button" aria-label="Notifications"><Icon name="bell" size={19} /><i /></Link><div className="topbar-divider" /><button className="topbar-profile"><span className="account-avatar">RK</span><span>Riya Kapoor</span><span className="switch-chevron">⌄</span></button></div></header><main className="main-content">{children}</main><footer className="app-footer"><span>Made for the way you do business.</span><span>Help center <b>·</b> Privacy <b>·</b> English (IN)</span></footer></div>
-    <nav className="mobile-tabbar" aria-label="Main navigation">{links(true)}<button className="mobile-nav-link mobile-menu-link" onClick={() => setDrawerOpen(true)}><span className="nav-icon"><Icon name="menu" size={19} /></span><span>More</span></button></nav>
-  </div>;
+  const items: Item[] = [
+    { href: "/dashboard", label: "Overview", icon: "home" },
+    { href: "/inbox", label: "Inbox", icon: "inbox", badge: needs },
+    { href: "/orders", label: "Orders", icon: "box" },
+    { href: "/catalog", label: "Catalog", icon: "tag" },
+    { href: "/customers", label: "Customers", icon: "users" },
+    { href: "/setup/team", label: "Team", icon: "team", admin: true },
+    { href: "/settings", label: "Settings", icon: "gear" },
+  ].filter((i) => !i.admin || isAdmin);
+
+  const mobile = items.filter((i) => ["/dashboard", "/inbox", "/orders", "/catalog", "/settings"].includes(i.href));
+  const active = (href: string) => path === href || path.startsWith(href + "/");
+  const current = items.find((i) => active(i.href))?.label ?? "Workspace";
+
+  return (
+    <div className="min-h-screen md:pl-64">
+      <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col border-r border-line bg-white p-4 md:flex">
+        <div className="px-2 pb-5 pt-2"><Brand /></div>
+        <div className="flex items-center gap-3 rounded-2xl border border-line p-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-soft font-serif text-lg font-bold text-brand-dark">
+            {initials(business?.name ?? "")}
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold">{business?.name}</p>
+            <p className="text-xs text-stone-500">{isAdmin ? "Owner workspace" : "Team member"}</p>
+          </div>
+        </div>
+        <button
+          onClick={() => router.push("/orders/new")}
+          className="mt-3 flex min-h-11 items-center gap-2 rounded-xl bg-brand px-4 text-sm font-bold text-ink hover:bg-brand-hover"
+        >
+          <Icon name="plus" className="h-4 w-4" /> Create order
+        </button>
+        <p className="mb-1 mt-6 px-3 text-[11px] font-bold uppercase tracking-widest text-stone-400">Workspace</p>
+        <nav className="flex-1 space-y-1">
+          {items.map((i) => (
+            <Link
+              key={i.href}
+              href={i.href}
+              className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold ${
+                active(i.href) ? "bg-brand-soft text-brand-dark" : "text-stone-600 hover:bg-stone-100"
+              }`}
+            >
+              <Icon name={i.icon} />
+              <span className="flex-1">{i.label}</span>
+              {i.badge ? <span className="rounded-full bg-stone-200 px-2 py-0.5 text-xs">{i.badge}</span> : null}
+            </Link>
+          ))}
+        </nav>
+        <div className="flex items-center gap-3 border-t border-line px-2 pt-4">
+          <span className="grid h-9 w-9 place-items-center rounded-full bg-brand-soft text-xs font-bold text-brand-dark">{initials(user?.name ?? "")}</span>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold">{user?.name}</p>
+            <p className="text-xs text-stone-500">{isAdmin ? "Business owner" : "Team"}</p>
+          </div>
+        </div>
+      </aside>
+
+      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-line bg-cream/90 px-4 py-3 backdrop-blur md:px-8">
+        <div className="md:hidden"><Brand /></div>
+        <p className="hidden text-sm text-stone-500 md:block">
+          Workspace <span className="mx-1 text-stone-300">›</span> <span className="font-semibold text-ink">{current}</span>
+        </p>
+        <Link href="/inbox" className="relative rounded-full border border-line bg-white p-2.5 text-stone-600" aria-label={`Inbox, ${needs} waiting`}>
+          <Icon name="bell" className="h-5 w-5" />
+          {needs ? <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">{needs}</span> : null}
+        </Link>
+      </header>
+
+      <main className="px-4 pb-28 pt-6 md:px-8 md:pb-10">{children}</main>
+
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 backdrop-blur md:hidden">
+        <ul className="flex">
+          {mobile.map((i) => (
+            <li key={i.href} className="flex-1">
+              <Link href={i.href} className={`relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold ${active(i.href) ? "text-brand-dark" : "text-stone-500"}`}>
+                <Icon name={i.icon} className="h-5 w-5" />
+                {i.label}
+                {i.badge ? <span className="absolute right-[22%] top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">{i.badge}</span> : null}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    </div>
+  );
 }

@@ -1,2 +1,1 @@
-// Current user and session.
-export {};
+export { useAuth } from "@/lib/auth";

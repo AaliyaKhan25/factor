@@ -1,2 +1,3 @@
-import AuthScreen from "@/components/layout/AuthScreen";
-export default function Page() { return <AuthScreen />; }
+export default function Page() {
+  return <main>Reset password with a token</main>;
+}

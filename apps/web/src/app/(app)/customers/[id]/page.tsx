@@ -1,2 +1,3 @@
-import ScreenPage from "@/components/layout/ScreenPage";
-export default function Page() { return <ScreenPage />; }
+export default function Page() {
+  return <main>Customer history and risk signals</main>;
+}
