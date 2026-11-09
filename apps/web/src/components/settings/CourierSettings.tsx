@@ -1,0 +1,16 @@
+"use client";
+import { useState } from "react";
+import { api } from "@/lib/api";
+import { usePolling } from "@/hooks/usePolling";
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
+import ErrorText from "@/components/ui/ErrorText";
+import Icon from "@/components/ui/Icon";
+
+type Connection={id:number;name:string;provider:string;credentials_configured:boolean;created_at:string};
+type Created=Connection&{webhook_path:string;webhook_secret:string};
+export default function CourierSettings(){
+ const {data,reload}=usePolling(()=>api<Connection[]>("/couriers"),30000,"couriers");const [name,setName]=useState("");const [provider,setProvider]=useState("generic");const [credentials,setCredentials]=useState("");const [result,setResult]=useState<Created|null>(null);const [error,setError]=useState("");const [busy,setBusy]=useState(false);
+ async function create(e:React.FormEvent){e.preventDefault();setBusy(true);setError("");setResult(null);try{let parsed:Record<string,string>={};if(credentials.trim())parsed=JSON.parse(credentials);const value=await api<Created>("/couriers",{body:{name,provider,credentials:parsed}});setResult(value);setName("");setCredentials("");await reload();}catch(e){setError(e instanceof Error?e.message:"Could not connect courier. Credentials must be valid JSON.");}finally{setBusy(false);}}
+ return <Card className="courier-settings-card"><div className="flex items-start gap-3"><span className="courier-icon"><Icon name="truck"/></span><div><h2 className="font-serif text-xl font-bold">Couriers</h2><p className="text-xs text-stone-500">Manual tracking works as-is. Connect a courier only if you have API credentials.</p></div></div><div className="mt-4 space-y-2">{(data??[]).map(c=><div key={c.id} className="courier-connection-row"><span><strong>{c.name}</strong><small>{c.provider} adapter · {c.credentials_configured?"Encrypted credentials saved":"Signed webhook only"}</small></span><span className="sheets-connection-pill connected"><i/>Connected</span></div>)}</div><form onSubmit={create} className="courier-setup-form"><label><span>Courier name</span><input value={name} onChange={e=>setName(e.target.value)} placeholder="Your courier name" required/></label><label><span>Adapter</span><select value={provider} onChange={e=>setProvider(e.target.value)}><option value="generic">Generic signed webhook</option><option value="fake">Fake courier (testing)</option></select></label><label className="courier-credentials-field"><span>API credentials <small>Optional JSON · encrypted at rest</small></span><textarea rows={3} value={credentials} onChange={e=>setCredentials(e.target.value)} placeholder={'{"api_key":"…","account":"…"}'}/></label><Button disabled={busy}>{busy?"Setting up…":"Create courier connection"}</Button></form><ErrorText message={error}/>{result&&<div className="webhook-created"><strong>Private webhook created</strong><p>Configure your courier to POST JSON here and sign it with the secret below.</p><code>{typeof window!=="undefined"?window.location.origin:""}{result.webhook_path}</code><small>Signature: HMAC-SHA256(secret, timestamp + "." + raw_body), sent as X-Courier-Signature: sha256=&lt;hex&gt; plus X-Courier-Timestamp.</small><code>{result.webhook_secret}</code><b>Copy this signing secret now. It is shown only once.</b></div>}</Card>;
+}

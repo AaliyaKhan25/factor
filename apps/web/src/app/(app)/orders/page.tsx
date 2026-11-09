@@ -200,6 +200,10 @@ export default function OrdersPage() {
                     <p className="mt-0.5 truncate text-xs text-stone-600">
                       <b className="font-semibold text-ink">{o.customer_name}</b> · {timeAgo(o.created_at)}
                     </p>
+                    <p className="mt-1 flex items-center gap-2 text-[10px] text-stone-500">
+                      {o.linked_conversation_id ? <span className="rounded-full bg-brand-soft px-2 py-0.5 font-semibold text-brand-dark">Chat linked</span> : null}
+                      {o.tracking ? <span>{o.tracking.courier_name} · {o.tracking.status.replaceAll("_", " ")}</span> : null}
+                    </p>
                   </div>
                   <div className="text-right">
                     <p className="font-display text-sm font-bold text-ink">{rupees(o.total_paise)}</p>

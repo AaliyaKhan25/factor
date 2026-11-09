@@ -43,9 +43,7 @@ npm run dev
 
 ## Status
 
-Working and tested (71 API tests, plus a browser run of the main flow):
-accounts and Google sign-in, business and business code, team approval, catalog, orders with stock and capacity checks and an evidence timeline, the inbox with a rule-based agent (answers price and stock questions, books orders on "confirm", hands custom requests, bargaining, complaints and payment claims to the owner), Meta webhooks for Instagram and WhatsApp, a live-updating overview, customers.
-Everything else is scaffolded. See `docs/TODO.md`.
+Core workflows include accounts and Google sign-in, business and business code, team approval, catalog, orders with stock and capacity checks, evidence timelines, a rule-based inbox agent, Meta webhooks, live overview, customers, inventory history, one-way Sheets snapshots, manual and signed courier tracking, and proposed voice actions. Real carrier APIs and delivery of replies through Meta still require provider credentials and their send APIs.
 
 ## Try the demo without Meta access
 
@@ -58,6 +56,14 @@ Create an OAuth client (type Web) in Google Cloud, add `http://localhost:3000` a
 ## Connect real Instagram or WhatsApp
 
 Settings > Connect Instagram gives you a callback URL and a verify token for the Meta app. Meta needs a public HTTPS address (a tunnel such as ngrok works for testing) and app review before it delivers real customer DMs. Set `META_APP_SECRET` so incoming webhooks are signature-checked. Sending replies back out through Meta is not built yet.
+
+## Inventory, Sheets, courier tracking and voice
+
+- Inventory keeps a movement ledger for opening stock, orders, cancellations, restocks and counts. The Inventory screen refreshes live and shows low or empty stock; made-to-order products show open orders against capacity.
+- Google Sheets sync is one way from Factor to three tabs: Orders, Inventory and Stock log. Set `GOOGLE_SERVICE_ACCOUNT_JSON` on the API, share the destination sheet with that service account email, then paste the Sheet link in Settings. Cells are sent as `RAW` text. The app does not import edits from Sheets.
+- Courier tracking works in manual mode without any connection. Sellers can add a courier name, AWB and optional URL, then record status updates. Optional generic signed webhooks and adapter connections are configured per seller. Set `COURIER_ENCRYPTION_KEY` to a Fernet key before creating a connection with credentials; generate one with `python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'`.
+- Voice commands use the server side `GNANI_API_KEY` for transcription and speech output. The browser records WAV audio and sends it to the API; the key is never sent to the browser. Read commands can run immediately. Orders, restocks and replies show a short lived proposal that needs confirmation; reply confirmation can also be spoken. Teammate approval is tap only.
+- Run the web capture state tests with `cd apps/web && npm test`; run the API suite with `cd apps/api && python -m pytest -q`.
 
 ## Honest limits
 

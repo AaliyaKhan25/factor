@@ -125,16 +125,27 @@ function Thread({ id, onBack, onChanged }: { id: number; onBack: () => void; onC
         </div>
       ) : null}
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-cream/60 p-4">
-        {c.messages.map((m) => (
-          <div key={m.id} className={`flex ${mine(m.sender) ? "justify-end" : "justify-start"}`}>
-            <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm shadow-sm ${m.sender === "customer" ? "rounded-bl-sm bg-white" : m.sender === "agent" ? "rounded-br-sm bg-brand-soft" : "rounded-br-sm bg-brand"}`}>
-              <p className="whitespace-pre-wrap">{m.text}</p>
-              <p className="mt-1 text-[10px] uppercase tracking-wide text-stone-500">{m.sender === "customer" ? "Customer" : m.sender === "agent" ? "Agent" : "You"} · {clock(m.created_at)}</p>
+      <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_250px]">
+        <div className="min-h-0 space-y-3 overflow-y-auto bg-cream/60 p-4">
+          {c.messages.map((m) => (
+            <div key={m.id} className={`flex ${mine(m.sender) ? "justify-end" : "justify-start"}`}>
+              <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm shadow-sm ${m.sender === "customer" ? "rounded-bl-sm bg-white" : m.sender === "agent" ? "rounded-br-sm bg-brand-soft" : "rounded-br-sm bg-brand"}`}>
+                <p className="whitespace-pre-wrap">{m.text}</p>
+                <p className="mt-1 text-[10px] uppercase tracking-wide text-stone-500">{m.sender === "customer" ? "Customer" : m.sender === "agent" ? "Agent" : "You"} · {clock(m.created_at)}</p>
+              </div>
             </div>
-          </div>
-        ))}
-        <div ref={bottom} />
+          ))}
+          <div ref={bottom} />
+        </div>
+        <aside className="hidden min-h-0 space-y-3 overflow-y-auto border-l border-line bg-white p-3 lg:block">
+          <p className="text-xs font-bold uppercase tracking-wide text-stone-500">Linked orders</p>
+          {c.orders.map((order) => <Link href={`/orders/${order.id}`} key={order.id} className="block rounded-xl border border-line bg-cream/50 p-3 hover:border-brand-dark">
+            <span className="flex items-center justify-between gap-2"><b className="text-sm">{order.code}</b><span className="text-[10px] capitalize text-stone-500">{order.status}</span></span>
+            <span className="mt-1 block text-xs text-stone-600">{rupees(order.total_paise)}</span>
+            {order.tracking ? <span className="mt-2 block rounded-lg bg-brand-soft p-2 text-xs"><b>{order.tracking.courier_name}</b><span className="block capitalize">{order.tracking.status.replaceAll("_", " ")}</span><span className="mt-0.5 block font-mono">AWB {order.tracking.awb}</span>{order.tracking.tracking_url ? <span className="mt-1 block underline">Open tracking ↗</span> : null}</span> : <span className="mt-2 block text-[11px] text-stone-400">No courier update yet</span>}
+          </Link>)}
+          {c.orders.length === 0 ? <p className="text-xs text-stone-400">No linked orders.</p> : null}
+        </aside>
       </div>
 
       <form onSubmit={reply} className="border-t border-line p-3">
@@ -153,6 +164,10 @@ export default function InboxPage() {
   const [tab, setTab] = useState<Tab>("needs_owner");
   const [selected, setSelected] = useState<number | null>(null);
   const [sim, setSim] = useState(false);
+  useEffect(() => {
+    const conversation = Number(new URLSearchParams(window.location.search).get("conversation"));
+    if (Number.isInteger(conversation) && conversation > 0) setSelected(conversation);
+  }, []);
   const counts = usePolling(() => api<InboxCounts>("/inbox/counts"), 4000);
   const list = usePolling(() => api<Conversation[]>(`/inbox/conversations?bucket=${tab}`), 4000, tab);
 

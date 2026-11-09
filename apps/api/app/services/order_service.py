@@ -13,6 +13,7 @@ from ..models.order import Order
 from ..models.order_event import OrderEvent
 from ..models.order_item import OrderItem
 from ..schemas.orders import OrderCreate
+from . import inventory_service
 
 OPEN_STATUSES = ("new", "confirmed", "packed", "shipped")
 
@@ -118,7 +119,13 @@ def create_order(db: Session, business_id: int, actor_id: int | None, body: Orde
             )
         )
         if item.kind == "ready_stock":
-            item.quantity = (item.quantity or 0) - qty
+            before = item.quantity or 0
+            inventory_service.ensure_opening(db, item, actor_id, balance=before)
+            item.quantity = before - qty
+            inventory_service.record(
+                db, item, kind="sale", delta=-qty, balance=item.quantity, actor_id=actor_id,
+                note=f"Order {order.code}",
+            )
     add_event(db, order, "created", actor_id, f"source={body.source}")
     return order
 
@@ -131,6 +138,11 @@ def change_status(db: Session, order: Order, new_status: str, actor_id: int | No
         for line in db.scalars(select(OrderItem).where(OrderItem.order_id == order.id)).all():
             item = db.get(CatalogItem, line.catalog_item_id)
             if item is not None and item.kind == "ready_stock":
+                inventory_service.ensure_opening(db, item, actor_id)
                 item.quantity = (item.quantity or 0) + line.quantity
+                inventory_service.record(
+                    db, item, kind="cancellation", delta=line.quantity, balance=item.quantity,
+                    actor_id=actor_id, note=f"Order {order.code} cancelled",
+                )
     order.status = new_status
     add_event(db, order, new_status, actor_id)

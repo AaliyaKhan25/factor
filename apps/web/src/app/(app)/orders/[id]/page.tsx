@@ -12,6 +12,7 @@ import ChannelBadge from "@/components/ui/ChannelBadge";
 import ErrorText from "@/components/ui/ErrorText";
 import StatusBadge from "@/components/orders/StatusBadge";
 import Icon from "@/components/ui/Icon";
+import CourierTracking from "@/components/orders/CourierTracking";
 
 const STAGES = ["new", "confirmed", "packed", "shipped", "delivered"];
 
@@ -88,6 +89,9 @@ export default function OrderDetailPage() {
         <p className="text-sm text-stone-600">{[o.customer.handle, o.customer.phone].filter(Boolean).join(" · ") || "No contact saved"}</p>
         {o.note ? <p className="mt-2 text-sm text-stone-600">Note: {o.note}</p> : null}
       </Card>
+
+      <CourierTracking orderId={o.id} tracking={o.tracking} onUpdated={() => void reload()} />
+      {o.linked_conversation ? <Card className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs text-stone-500">Linked customer chat</p><p className="font-semibold">{o.linked_conversation.display_name}</p></div><Link href={`/inbox?conversation=${o.linked_conversation.id}`} className="rounded-xl bg-brand-soft px-3 py-2 text-sm font-semibold text-brand-dark">Open chat</Link></Card> : null}
 
       <Card>
         <ul className="divide-y divide-line">

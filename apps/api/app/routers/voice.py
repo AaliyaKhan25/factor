@@ -1,8 +1,9 @@
-"""Voice endpoints powered by Gnani.ai Indic conversational AI."""
+"""Gnani speech proxy and safe voice-command confirmation workflow."""
 import base64
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+import binascii
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..ai import speech
@@ -13,88 +14,80 @@ from ..services import voice_service
 router = APIRouter(prefix="/voice", tags=["voice"])
 
 
-class VoiceOrderRequest(BaseModel):
-    text: str
-    language: Optional[str] = "en-IN"
+class VoiceCommand(BaseModel):
+    text: str = Field(min_length=1, max_length=2000)
 
 
-class VoiceAudioRequest(BaseModel):
-    audio_base64: str
-    content_type: Optional[str] = "audio/wav"
-    language: Optional[str] = "en-IN"
+class VoiceAudio(BaseModel):
+    audio_base64: str = Field(min_length=1, max_length=15_000_000)
+    content_type: str = "audio/wav"
+    language: str = "indic-auto"
+
+
+class ConfirmProposal(BaseModel):
+    voice_phrase: str | None = None
 
 
 @router.get("/status")
 def voice_status():
-    """Return Gnani AI service status and supported languages."""
-    return {
-        "provider": "Gnani.ai",
-        "gnani_configured": speech.is_gnani_configured(),
-        "supported_languages": [
-            {"code": "en-IN", "name": "Indian English"},
-            {"code": "hi-IN", "name": "Hindi (हिंदी)"},
-            {"code": "kn-IN", "name": "Kannada (ಕನ್ನಡ)"},
-            {"code": "ta-IN", "name": "Tamil (தமிழ்)"},
-            {"code": "te-IN", "name": "Telugu (తెలుగు)"},
-            {"code": "gu-IN", "name": "Gujarati (ગુજરાતી)"},
-            {"code": "mr-IN", "name": "Marathi (मराठी)"},
-            {"code": "bn-IN", "name": "Bengali (বাংলা)"},
-        ],
-    }
+    return {"provider": "Gnani.ai", "gnani_configured": speech.is_gnani_configured(),
+            "speech_to_text": True, "text_to_speech": True,
+            "supported_languages": [{"code": "indic-auto", "name": "English, Hindi and Hinglish"}]}
 
 
-@router.post("/parse-order")
-def parse_voice_order_text(
-    body: VoiceOrderRequest,
-    ctx: Ctx = Depends(require_permission("manage_orders")),
-    db: Session = Depends(get_db),
-):
-    """Parse spoken text transcribed via Gnani.ai and auto-create order."""
-    if not body.text.strip():
-        raise HTTPException(status_code=400, detail="Voice text cannot be empty")
+def _command(text: str, ctx: Ctx, db: Session) -> dict:
+    if not ctx.session_id:
+        raise HTTPException(status_code=401, detail="Sign in again to use voice confirmations")
+    result = voice_service.process_command(db, ctx.business_id, ctx.user.id, ctx.session_id, text)
+    if result["type"] == "read_only":
+        try:
+            audio = speech.speak_with_gnani(result["text"])
+            import asyncio
+            result["audio_base64"] = base64.b64encode(asyncio.run(audio)).decode("ascii")
+            result["audio_content_type"] = "audio/wav"
+        except Exception:
+            # Text remains usable if TTS is temporarily unavailable.
+            result["speech_available"] = False
+    return result
+
+
+@router.post("/commands")
+@router.post("/parse-order", include_in_schema=False)
+def voice_command(body: VoiceCommand, ctx: Ctx = Depends(require_permission("manage_orders")), db: Session = Depends(get_db)):
+    return _command(body.text, ctx, db)
+
+
+@router.post("/transcribe-and-command")
+async def transcribe_and_command(body: VoiceAudio, ctx: Ctx = Depends(require_permission("manage_orders")), db: Session = Depends(get_db)):
     try:
-        return voice_service.process_voice_order(
-            db=db,
-            business_id=ctx.business_id,
-            actor_id=ctx.user.id,
-            transcript=body.text,
-            language=body.language or "en-IN",
-        )
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-
-
-@router.post("/transcribe-and-order")
-async def transcribe_audio_and_create_order(
-    body: VoiceAudioRequest,
-    ctx: Ctx = Depends(require_permission("manage_orders")),
-    db: Session = Depends(get_db),
-):
-    """Accept base64 audio, transcribe via Gnani.ai Indic ASR, and auto-create order."""
-    try:
-        audio_bytes = base64.b64decode(body.audio_base64)
-    except Exception:
+        audio = base64.b64decode(body.audio_base64, validate=True)
+    except (binascii.Error, ValueError):
         raise HTTPException(status_code=400, detail="Invalid base64 audio data")
-
-    if not audio_bytes:
-        raise HTTPException(status_code=400, detail="Audio file is empty")
-
+    if not audio or len(audio) > 10_000_000:
+        raise HTTPException(status_code=413, detail="Audio must be between 1 byte and 10 MB")
     try:
-        transcript = await speech.transcribe_with_gnani(
-            audio_bytes=audio_bytes,
-            content_type=body.content_type or "audio/wav",
-            language=body.language or "en-IN",
-        )
+        transcript = await speech.transcribe_with_gnani(audio, body.content_type, body.language)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Gnani.ai speech recognition failed: {str(exc)}")
+        raise HTTPException(status_code=502, detail=f"Speech recognition failed: {exc}")
+    result = _command(transcript, ctx, db)
+    result["transcript"] = transcript
+    return result
 
+
+@router.post("/proposals/{token}/confirm")
+def confirm_voice_proposal(token: str, body: ConfirmProposal, ctx: Ctx = Depends(require_permission("manage_orders")), db: Session = Depends(get_db)):
+    if not ctx.session_id:
+        raise HTTPException(status_code=401, detail="Sign in again to confirm voice actions")
+    return voice_service.confirm_proposal(db, ctx.business_id, ctx.user.id, ctx.session_id, token, voice_phrase=body.voice_phrase)
+
+
+@router.post("/proposals/{token}/confirm-audio")
+async def confirm_voice_proposal_by_audio(token: str, body: VoiceAudio, ctx: Ctx = Depends(require_permission("manage_orders")), db: Session = Depends(get_db)):
+    if not ctx.session_id:
+        raise HTTPException(status_code=401, detail="Sign in again to confirm voice actions")
     try:
-        return voice_service.process_voice_order(
-            db=db,
-            business_id=ctx.business_id,
-            actor_id=ctx.user.id,
-            transcript=transcript,
-            language=body.language or "en-IN",
-        )
+        audio = base64.b64decode(body.audio_base64, validate=True)
+        phrase = await speech.transcribe_with_gnani(audio, body.content_type, body.language)
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=f"Could not recognize confirmation: {exc}")
+    return voice_service.confirm_proposal(db, ctx.business_id, ctx.user.id, ctx.session_id, token, voice_phrase=phrase)

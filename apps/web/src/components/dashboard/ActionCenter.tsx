@@ -27,6 +27,8 @@ export default function ActionCenter({ items, businessName }: Props) {
         return { bg: "bg-sky-100", text: "text-sky-800", icon: "truck", label: "Dispatch" };
       case "orders":
         return { bg: "bg-emerald-100", text: "text-emerald-800", icon: "box", label: "New Order" };
+      case "inventory":
+        return { bg: "bg-amber-100", text: "text-amber-800", icon: "box", label: "Low stock" };
       default:
         return { bg: "bg-stone-100", text: "text-stone-700", icon: "spark", label: "Task" };
     }

@@ -23,12 +23,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     { href: "/inbox", label: "Inbox", icon: "inbox", badge: needs },
     { href: "/orders", label: "Orders", icon: "box" },
     { href: "/catalog", label: "Catalog", icon: "tag" },
+    { href: "/inventory", label: "Inventory", icon: "box" },
     { href: "/customers", label: "Customers", icon: "users" },
     { href: "/setup/team", label: "Team", icon: "team", admin: true },
     { href: "/settings", label: "Settings", icon: "gear" },
   ].filter((i) => !i.admin || isAdmin);
 
-  const mobile = items.filter((i) => ["/dashboard", "/inbox", "/orders", "/catalog", "/settings"].includes(i.href));
+  const mobile = items.filter((i) => ["/dashboard", "/inbox", "/orders", "/inventory", "/catalog", "/settings"].includes(i.href));
   const active = (href: string) => path === href || path.startsWith(href + "/");
   const current = items.find((i) => active(i.href))?.label ?? "Workspace";
 

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from ..models.conversation import Conversation
 from ..models.customer import Customer
 from ..models.order import Order
+from ..models.catalog_item import CatalogItem
 from ..utils.time import utcnow
 
 
@@ -52,6 +53,20 @@ def build(db: Session, business_id: int) -> dict:
         todo.append({"kind": "ship", "title": f"Ship {len(packed)} packed {'order' if len(packed) == 1 else 'orders'}",
                      "detail": ", ".join(o.code for o in packed[:4]), "href": "/orders?status=packed"})
 
+    inventory = db.scalars(
+        select(CatalogItem).where(CatalogItem.business_id == business_id, CatalogItem.active.is_(True), CatalogItem.kind == "ready_stock")
+    ).all()
+    out_of_stock = [i for i in inventory if (i.quantity or 0) == 0]
+    low_stock = [i for i in inventory if 0 < (i.quantity or 0) <= 5]
+    flagged = out_of_stock + low_stock
+    if flagged:
+        todo.append({
+            "kind": "inventory",
+            "title": f"{len(flagged)} item{'s' if len(flagged) != 1 else ''} running low",
+            "detail": ", ".join(i.name for i in flagged[:3]),
+            "href": "/inventory",
+        })
+
     return {
         "sales_month_paise": this_month,
         "sales_prev_month_paise": last_month,
@@ -65,4 +80,6 @@ def build(db: Session, business_id: int) -> dict:
         "daily": [{"date": d.isoformat(), "total_paise": v} for d, v in daily.items()],
         "todo": todo,
         "customers": db.query(Customer).filter(Customer.business_id == business_id).count(),
+        "low_stock_count": len(low_stock),
+        "out_of_stock_count": len(out_of_stock),
     }

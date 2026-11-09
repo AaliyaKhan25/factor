@@ -50,8 +50,16 @@ def ingest(db: Session, business_id: int, channel: str, handle: str, name: str, 
     if conv.status == "resolved":
         conv.status, conv.reason = "agent", ""
 
+    contact_handle = handle
+    if conv.customer_id is None:
+        phone, customer_handle = _split_contact(channel, contact_handle)
+        customer = order_service.find_or_create_customer(
+            db, business_id, CustomerIn(name=conv.display_name, phone=phone, handle=customer_handle)
+        )
+        conv.customer_id = customer.id
+
     decision = agent_service.decide(db, conv, text)
-    phone, h = _split_contact(channel, handle)
+    phone, h = _split_contact(channel, contact_handle)
 
     if decision.order_note:
         order = agent_service.place_order(db, conv, conv.display_name, phone, h, decision.order_note)
@@ -71,11 +79,6 @@ def ingest(db: Session, business_id: int, channel: str, handle: str, name: str, 
         add_message(db, conv, "out", "agent", decision.reply)
     if decision.escalate:
         conv.status, conv.reason = "needs_owner", decision.escalate
-    if conv.customer_id is None:
-        cust = order_service.find_or_create_customer(
-            db, business_id, CustomerIn(name=conv.display_name, phone=phone, handle=h)
-        )
-        conv.customer_id = cust.id
     return conv
 
 

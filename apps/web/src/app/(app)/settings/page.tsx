@@ -9,6 +9,8 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import ChannelBadge from "@/components/ui/ChannelBadge";
 import ErrorText from "@/components/ui/ErrorText";
+import SheetsSettings from "@/components/settings/SheetsSettings";
+import CourierSettings from "@/components/settings/CourierSettings";
 
 function Channels() {
   const { data, reload } = usePolling(() => api<Channel[]>("/channels"), 30000);
@@ -82,6 +84,8 @@ export default function SettingsPage() {
         </div>
       </Card>
       {isAdmin ? <Channels /> : null}
+      {isAdmin ? <SheetsSettings /> : null}
+      {isAdmin ? <CourierSettings /> : null}
       {isAdmin ? (
         <Card>
           <p className="text-sm text-stone-600">Business code for your team</p>

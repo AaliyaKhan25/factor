@@ -8,6 +8,7 @@ from ..deps import Ctx, require_permission
 from ..models.conversation import Conversation
 from ..models.message import Message
 from ..models.order import Order
+from ..services.courier_service import get_shipment, shipment_view
 from ..schemas.inbox import ConvStatusIn, ReplyIn, SimulateIn
 from ..services import activity_service, conversation_service
 
@@ -39,11 +40,15 @@ def _detail(db: Session, c: Conversation) -> dict:
     msgs = db.scalars(select(Message).where(Message.conversation_id == c.id).order_by(Message.id)).all()
     orders = []
     if c.customer_id:
-        orders = db.scalars(select(Order).where(Order.customer_id == c.customer_id).order_by(Order.id.desc()).limit(5)).all()
+        orders = db.scalars(select(Order).where(
+            Order.business_id == c.business_id, Order.customer_id == c.customer_id
+        ).order_by(Order.id.desc()).limit(5)).all()
     return {
         **_summary(c),
         "messages": [{"id": m.id, "direction": m.direction, "sender": m.sender, "text": m.text, "created_at": m.created_at} for m in msgs],
-        "orders": [{"id": o.id, "code": o.code, "status": o.status, "total_paise": o.total_paise} for o in orders],
+        "orders": [{"id": o.id, "code": o.code, "status": o.status, "total_paise": o.total_paise,
+                    "created_at": o.created_at, "tracking": shipment_view(get_shipment(db, c.business_id, o.id))}
+                   for o in orders],
     }
 
 

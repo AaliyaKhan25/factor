@@ -14,4 +14,8 @@ from .membership import Membership  # noqa: F401
 from .order import Order  # noqa: F401
 from .order_event import OrderEvent  # noqa: F401
 from .order_item import OrderItem  # noqa: F401
+from .stock_log import StockLog  # noqa: F401
+from .sheet_connection import SheetConnection  # noqa: F401
+from .courier import CourierConnection, CourierShipment, CourierWebhookEvent  # noqa: F401
+from .voice_proposal import VoiceProposal  # noqa: F401
 from .user import User  # noqa: F401

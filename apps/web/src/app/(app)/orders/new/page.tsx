@@ -108,7 +108,7 @@ export default function NewOrderPage() {
       {voiceModalOpen && (
         <VoiceOrderModal
           onClose={() => setVoiceModalOpen(false)}
-          onOrderCreated={(order) => router.push(`/orders/${order.id}`)}
+          onOrderCreated={() => router.push("/orders")}
         />
       )}
     </form>

@@ -9,8 +9,10 @@ from ..models.customer import Customer
 from ..models.order import Order
 from ..models.order_event import OrderEvent
 from ..models.order_item import OrderItem
+from ..models.conversation import Conversation
 from ..schemas.orders import OrderCreate, StatusChange
-from ..services import activity_service, order_service
+from ..services import activity_service, order_service, sheet_sync_service
+from ..services.courier_service import get_shipment, shipment_view
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -39,6 +41,9 @@ def _detail(db: Session, o: Order) -> dict:
     c = db.get(Customer, o.customer_id)
     items = db.scalars(select(OrderItem).where(OrderItem.order_id == o.id).order_by(OrderItem.id)).all()
     events = db.scalars(select(OrderEvent).where(OrderEvent.order_id == o.id).order_by(OrderEvent.id)).all()
+    conv = db.scalar(select(Conversation).where(
+        Conversation.business_id == o.business_id, Conversation.customer_id == o.customer_id
+    ).order_by(Conversation.last_message_at.desc()).limit(1))
     return {
         **_summary(o, c),
         "note": o.note,
@@ -47,6 +52,8 @@ def _detail(db: Session, o: Order) -> dict:
             {"name": i.name, "quantity": i.quantity, "unit_price_paise": i.unit_price_paise} for i in items
         ],
         "events": [{"kind": e.kind, "detail": e.detail, "created_at": e.created_at} for e in events],
+        "tracking": shipment_view(get_shipment(db, o.business_id, o.id)),
+        "linked_conversation": ({"id": conv.id, "channel": conv.channel, "display_name": conv.display_name} if conv else None),
         "next_statuses": list(order_service.TRANSITIONS[o.status]),
     }
 
@@ -58,6 +65,7 @@ def create_order(body: OrderCreate, ctx: Ctx = Depends(require_permission("manag
         db, business_id=ctx.business_id, actor_user_id=ctx.user.id, action="order.create", entity="order", entity_id=order.id
     )
     db.commit()
+    sheet_sync_service.enqueue_sync(db, ctx.business_id)
     return _detail(db, order)
 
 
@@ -75,7 +83,15 @@ def list_orders(
     )
     if status:
         q = q.where(Order.status == status)
-    return [_summary(o, c) for o, c in db.execute(q).all()]
+    rows = []
+    for o, c in db.execute(q).all():
+        conv = db.scalar(select(Conversation).where(
+            Conversation.business_id == o.business_id, Conversation.customer_id == o.customer_id
+        ).order_by(Conversation.last_message_at.desc()).limit(1))
+        shipment = get_shipment(db, o.business_id, o.id)
+        rows.append({**_summary(o, c), "linked_conversation_id": conv.id if conv else None,
+                     "tracking": shipment_view(shipment)})
+    return rows
 
 
 @router.get("/{order_id}")
@@ -99,4 +115,5 @@ def set_status(
         detail=body.status,
     )
     db.commit()
+    sheet_sync_service.enqueue_sync(db, ctx.business_id)
     return _detail(db, order)

@@ -7,7 +7,7 @@ from ..db import get_db
 from ..deps import Ctx, get_ctx, require_permission
 from ..models.catalog_item import CatalogItem
 from ..schemas.catalog import CatalogCreate, CatalogUpdate
-from ..services import activity_service, order_service
+from ..services import activity_service, inventory_service, order_service, sheet_sync_service
 
 router = APIRouter(prefix="/catalog", tags=["catalog"])
 
@@ -23,6 +23,8 @@ def _view(db: Session, i: CatalogItem) -> dict:
         "lead_time_days": i.lead_time_days,
         "active": i.active,
         "available": order_service.availability(db, i),
+        "low_stock": i.kind == "ready_stock" and 0 < (i.quantity or 0) <= inventory_service.LOW_STOCK_AT,
+        "out_of_stock": i.kind == "ready_stock" and (i.quantity or 0) == 0,
     }
 
 
@@ -46,10 +48,12 @@ def create_item(body: CatalogCreate, ctx: Ctx = Depends(require_permission("edit
     item = CatalogItem(business_id=ctx.business_id, **body.model_dump())
     db.add(item)
     db.flush()
+    inventory_service.ensure_opening(db, item, ctx.user.id)
     activity_service.log(
         db, business_id=ctx.business_id, actor_user_id=ctx.user.id, action="catalog.create", entity="catalog_item", entity_id=item.id
     )
     db.commit()
+    sheet_sync_service.enqueue_sync(db, ctx.business_id)
     return _view(db, item)
 
 
@@ -63,10 +67,13 @@ def update_item(
         raise HTTPException(status_code=422, detail="Quantity is only for ready stock items")
     if "capacity" in changes and item.kind != "made_to_order":
         raise HTTPException(status_code=422, detail="Capacity is only for made-to-order items")
+    counted_quantity = changes.pop("quantity", None) if "quantity" in changes else None
     for key, value in changes.items():
         if value is None and key != "lead_time_days":
             continue
         setattr(item, key, value)
+    if counted_quantity is not None:
+        inventory_service.count(db, item, counted_quantity, ctx.user.id, "Catalog quantity edited")
     activity_service.log(
         db,
         business_id=ctx.business_id,
@@ -77,4 +84,6 @@ def update_item(
         detail=",".join(sorted(changes)),
     )
     db.commit()
+    if changes or counted_quantity is not None:
+        sheet_sync_service.enqueue_sync(db, ctx.business_id)
     return _view(db, item)

@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .core.permissions import effective_permissions
-from .core.security import decode_access_token
+from .core.security import decode_access_session, decode_access_token
 from .db import get_db
 from .models.membership import Membership
 from .models.user import User
@@ -41,9 +41,10 @@ class Ctx:
     membership: Membership
     business_id: int
     permissions: frozenset[str]
+    session_id: str
 
 
-def get_ctx(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Ctx:
+def get_ctx(user: User = Depends(get_current_user), db: Session = Depends(get_db), creds: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> Ctx:
     """The signed-in user's active business. Pending, rejected and removed members get 403."""
     membership = active_membership(db, user.id)
     if membership is None:
@@ -53,6 +54,7 @@ def get_ctx(user: User = Depends(get_current_user), db: Session = Depends(get_db
         membership=membership,
         business_id=membership.business_id,
         permissions=effective_permissions(membership.role, membership.extra_permissions),
+        session_id=decode_access_session(creds.credentials) if creds else "",
     )
 
 

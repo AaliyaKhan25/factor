@@ -1,4 +1,5 @@
 import "./globals.css";
+import "./inventory.css";
 import { AuthProvider } from "@/lib/auth";
 
 export const metadata = {

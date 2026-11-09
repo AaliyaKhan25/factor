@@ -3,6 +3,7 @@ import base64
 import hashlib
 import hmac
 import os
+import secrets
 from datetime import timedelta
 
 import jwt
@@ -35,7 +36,7 @@ def verify_password(password: str, stored: str) -> bool:
 
 def create_access_token(user_id: int) -> str:
     now = utcnow()
-    payload = {"sub": str(user_id), "iat": now, "exp": now + timedelta(minutes=settings.jwt_minutes)}
+    payload = {"sub": str(user_id), "sid": secrets.token_urlsafe(24), "iat": now, "exp": now + timedelta(minutes=settings.jwt_minutes)}
     return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
 
 
@@ -44,5 +45,14 @@ def decode_access_token(token: str) -> int | None:
     try:
         data = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
         return int(data["sub"])
+    except (jwt.PyJWTError, KeyError, ValueError):
+        return None
+
+
+def decode_access_session(token: str) -> str | None:
+    """Return the signed-in session id from a valid access token."""
+    try:
+        data = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
+        return str(data["sid"])
     except (jwt.PyJWTError, KeyError, ValueError):
         return None

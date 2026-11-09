@@ -32,35 +32,45 @@ def test_voice_status_endpoint(client):
     assert r.status_code == 200
     data = r.json()
     assert data["provider"] == "Gnani.ai"
-    assert any(l["code"] == "en-IN" for l in data["supported_languages"])
-    assert any(l["code"] == "hi-IN" for l in data["supported_languages"])
+    assert data["speech_to_text"] and data["text_to_speech"]
+    assert data["supported_languages"][0]["code"] == "indic-auto"
 
 
-def test_voice_order_auto_creation_endpoint(client):
+def test_voice_command_creates_one_time_proposal_instead_of_order(client):
     owner, _ = new_owner(client)
+    item = client.post("/catalog", json={"name": "Roses", "kind": "ready_stock", "price_paise": 2000, "quantity": 15}, headers=owner).json()
+    proposed = client.post("/voice/commands", json={"text": "restock 4 to Roses"}, headers=owner)
+    assert proposed.status_code == 200, proposed.text
+    data = proposed.json()
+    assert data["type"] == "proposal"
+    assert client.get("/inventory", headers=owner).json()["items"][0]["quantity"] == 15
+    done = client.post(f"/voice/proposals/{data['token']}/confirm", json={}, headers=owner)
+    assert done.status_code == 200, done.text
+    assert client.get("/inventory", headers=owner).json()["items"][0]["quantity"] == 19
+    assert client.post(f"/voice/proposals/{data['token']}/confirm", json={}, headers=owner).status_code == 410
 
-    # Post exact user prompt voice command
-    payload = {
-        "text": "rahul bought 80 roses , total price 1600",
-        "language": "en-IN",
-    }
-    r = client.post("/voice/parse-order", json=payload, headers=owner)
-    assert r.status_code == 200, r.text
-    data = r.json()
 
-    assert data["success"] is True
-    assert data["provider"] == "Gnani.ai"
-    assert data["transcript"] == "rahul bought 80 roses , total price 1600"
-    assert data["order"]["customer_name"] == "Rahul"
-    assert data["order"]["total_paise"] == 160000
+def test_voice_read_only_command_returns_data_without_proposal(client):
+    owner, _ = new_owner(client)
+    r = client.post("/voice/commands", json={"text": "read low stock"}, headers=owner)
+    assert r.status_code == 200
+    assert r.json()["type"] == "read_only"
+    assert "No items" in r.json()["text"]
 
-    order_id = data["order"]["id"]
 
-    # Verify the order exists in the orders endpoint
-    order_detail = client.get(f"/orders/{order_id}", headers=owner).json()
-    assert order_detail["customer"]["name"] == "Rahul"
-    assert order_detail["source"] == "voice"
-    assert order_detail["total_paise"] == 160000
-    assert len(order_detail["items"]) == 1
-    assert order_detail["items"][0]["name"] == "Roses"
-    assert order_detail["items"][0]["quantity"] == 80
+def test_voice_proposal_is_bound_to_signed_in_user(client):
+    owner, _ = new_owner(client)
+    client.post("/catalog", json={"name": "Roses", "kind": "ready_stock", "price_paise": 2000, "quantity": 15}, headers=owner)
+    token = client.post("/voice/commands", json={"text": "restock 4 to Roses"}, headers=owner).json()["token"]
+    other, _ = new_owner(client, email="other-owner@example.com")
+    assert client.post(f"/voice/proposals/{token}/confirm", json={}, headers=other).status_code == 404
+    assert client.get("/inventory", headers=owner).json()["items"][0]["quantity"] == 15
+
+
+def test_voice_proposal_is_bound_to_the_exact_login_session(client):
+    owner, _ = new_owner(client)
+    client.post("/catalog", json={"name": "Roses", "kind": "ready_stock", "price_paise": 2000, "quantity": 15}, headers=owner)
+    token = client.post("/voice/commands", json={"text": "restock 4 to Roses"}, headers=owner).json()["token"]
+    fresh_login = client.post("/auth/login", json={"email": "owner@example.com", "password": "correct-horse-1"}).json()
+    fresh_headers = {"Authorization": f"Bearer {fresh_login['access_token']}"}
+    assert client.post(f"/voice/proposals/{token}/confirm", json={}, headers=fresh_headers).status_code == 404

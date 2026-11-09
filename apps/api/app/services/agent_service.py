@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 
 from ..models.catalog_item import CatalogItem
 from ..models.conversation import Conversation
+from ..models.order import Order
+from ..models.order_event import OrderEvent
 from ..schemas.orders import CustomerIn, LineIn, OrderCreate
 from . import order_service
 
@@ -29,6 +31,10 @@ ESCALATE: list[tuple[str, tuple[str, ...]]] = [
 ORDER_INTENT = (
     "confirm", "book it", "book kar", "i'll take", "i will take", "want to order", "place order", "chahiye",
     "chaiye", "lena hai", "le lunga", "le lungi", "order kar", "bhej do", "i want",
+)
+TRACKING_INTENT = (
+    "where is my order", "where's my order", "track my order", "track order", "order status",
+    "kahan hai mera order", "mera order kahan", "order kahan hai", "mera parcel kahan", "kab ayega",
 )
 PRICE_INTENT = ("price", "how much", "kitne", "kitna", "rate", "cost", "available", "stock", "hai kya")
 GREETINGS = ("hi", "hello", "hey", "hii", "namaste", "hlo")
@@ -88,6 +94,31 @@ class Decision:
 
 def decide(db: Session, conv: Conversation, text: str) -> Decision:
     low = text.lower()
+    if any(phrase in low for phrase in TRACKING_INTENT):
+        active_orders = db.scalars(
+            select(Order).where(
+                Order.business_id == conv.business_id,
+                Order.customer_id == conv.customer_id,
+                Order.status != "cancelled",
+            ).order_by(Order.id.desc())
+        ).all()
+        if len(active_orders) != 1:
+            return Decision("I couldn’t match exactly one active order, so I’ve asked the owner to help.", escalate="Order tracking needs an owner")
+        order = active_orders[0]
+        from ..models.courier import CourierShipment
+        shipment = db.scalar(select(CourierShipment).where(
+            CourierShipment.business_id == conv.business_id, CourierShipment.order_id == order.id
+        ))
+        if shipment:
+            status = shipment.status.replace("_", " ")
+            when = shipment.updated_at.strftime("%d %b at %I:%M %p UTC")
+            reply = f"Your order {order.code} is {status}. The latest update was {when}."
+            if shipment.tracking_url:
+                reply += f" Track it here: {shipment.tracking_url}"
+            return Decision(reply)
+        event = db.scalar(select(OrderEvent).where(OrderEvent.order_id == order.id).order_by(OrderEvent.id.desc()).limit(1))
+        when = event.created_at.strftime("%d %b at %I:%M %p UTC") if event else order.created_at.strftime("%d %b at %I:%M %p UTC")
+        return Decision(f"Your order {order.code} is {order.status}. The latest update was {when}; tracking details aren’t available yet.")
     for reason, keys in ESCALATE:
         if any(k in low for k in keys):
             return Decision("Thanks for telling me. I have passed this to the owner, who will reply here soon.", escalate=reason)
