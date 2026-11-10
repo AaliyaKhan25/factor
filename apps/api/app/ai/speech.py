@@ -35,7 +35,12 @@ async def transcribe_with_gnani(
     lang = language or settings.gnani_lang_code or GNANI_LANG_CODE
     headers = {"X-API-Key-ID": token}
     files = {"audio_file": ("voice_input.wav", audio_bytes, content_type)}
-    data = {"language_code": lang, "model": "prisma-v3.0"}
+    # Without a format, the model writes English words in Devanagari ("हाउ मेनी रोजेस"), which the command
+    # parser cannot read. "transliterate" returns everything in Latin letters and detects the language itself.
+    fmt = settings.gnani_stt_format or "transliterate"
+    data = {"model": "prisma-v3.0", "format": fmt}
+    if fmt != "transliterate" or lang not in ("", "indic-auto"):
+        data["language_code"] = lang or "indic-auto"
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:

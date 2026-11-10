@@ -23,6 +23,8 @@ class Settings:
     gnani_lang_code: str = os.environ.get("GNANI_LANG_CODE", "en-IN")
     gnani_asr_url: str = os.environ.get("GNANI_ASR_URL", "https://asr.gnani.ai/v1/recognize")
     gnani_stt_url: str = os.environ.get("GNANI_STT_URL", "https://api.vachana.ai/stt/v3")
+    # transliterate: Latin letters for everything. codemix: English stays Latin, Hindi stays Devanagari.
+    gnani_stt_format: str = os.environ.get("GNANI_STT_FORMAT", "transliterate")
     gnani_tts_url: str = os.environ.get("GNANI_TTS_URL", "https://api.vachana.ai/api/v1/tts/inference")
     courier_encryption_key: str = os.environ.get("COURIER_ENCRYPTION_KEY", "")
 

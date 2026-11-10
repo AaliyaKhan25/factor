@@ -38,23 +38,25 @@ def voice_status():
 def _command(text: str, ctx: Ctx, db: Session) -> dict:
     if not ctx.session_id:
         raise HTTPException(status_code=401, detail="Sign in again to use voice confirmations")
-    result = voice_service.process_command(db, ctx.business_id, ctx.user.id, ctx.session_id, text)
-    if result["type"] == "read_only":
+    return voice_service.process_command(db, ctx.business_id, ctx.user.id, ctx.session_id, text)
+
+
+async def _with_speech(result: dict) -> dict:
+    """Read-only answers are also spoken. Text stays usable if text to speech is unavailable."""
+    if result.get("type") == "read_only":
         try:
-            audio = speech.speak_with_gnani(result["text"])
-            import asyncio
-            result["audio_base64"] = base64.b64encode(asyncio.run(audio)).decode("ascii")
+            audio = await speech.speak_with_gnani(result["text"])
+            result["audio_base64"] = base64.b64encode(audio).decode("ascii")
             result["audio_content_type"] = "audio/wav"
         except Exception:
-            # Text remains usable if TTS is temporarily unavailable.
             result["speech_available"] = False
     return result
 
 
 @router.post("/commands")
 @router.post("/parse-order", include_in_schema=False)
-def voice_command(body: VoiceCommand, ctx: Ctx = Depends(require_permission("manage_orders")), db: Session = Depends(get_db)):
-    return _command(body.text, ctx, db)
+async def voice_command(body: VoiceCommand, ctx: Ctx = Depends(require_permission("manage_orders")), db: Session = Depends(get_db)):
+    return await _with_speech(_command(body.text, ctx, db))
 
 
 @router.post("/transcribe-and-command")
@@ -69,7 +71,7 @@ async def transcribe_and_command(body: VoiceAudio, ctx: Ctx = Depends(require_pe
         transcript = await speech.transcribe_with_gnani(audio, body.content_type, body.language)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Speech recognition failed: {exc}")
-    result = _command(transcript, ctx, db)
+    result = await _with_speech(_command(transcript, ctx, db))
     result["transcript"] = transcript
     return result
 

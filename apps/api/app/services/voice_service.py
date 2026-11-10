@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ..ai import voice_text
 from ..models.activity_log import ActivityLog
 from ..models.catalog_item import CatalogItem
 from ..models.conversation import Conversation
@@ -36,46 +37,61 @@ def _proposal(db: Session, business_id: int, actor_id: int, session_id: str, act
             "expires_at": row.expires_at, "voice_confirmation_allowed": action == "send_reply"}
 
 
+HELP_TEXT = ("Try: ‘how many [item] are left’, ‘read low stock’, ‘read today’s DMs’, "
+             "‘restock 4 to [item]’, or ‘reply to chat [number] saying [message]’.")
+
+
+def _active_items(db: Session, business_id: int) -> list[CatalogItem]:
+    return list(db.scalars(select(CatalogItem).where(CatalogItem.business_id == business_id,
+                                                      CatalogItem.active.is_(True)).order_by(CatalogItem.id)).all())
+
+
+def _stock_line(db: Session, item: CatalogItem) -> str:
+    if item.kind == "ready_stock":
+        qty = item.quantity or 0
+        return f"{item.name}: {qty} left." + (" That is low." if qty <= inventory_service.LOW_STOCK_AT else "")
+    from . import order_service
+    return f"{item.name}: {order_service.availability(db, item)} of {item.capacity} order slots free."
+
+
+def _read(db: Session, business_id: int, actor_id: int, what: str, text: str) -> dict:
+    _log(db, business_id, actor_id, "read", what)
+    db.commit()
+    return {"type": "read_only", "text": text}
+
+
 def process_command(db: Session, business_id: int, actor_id: int, session_id: str, command: str) -> dict:
-    text = " ".join(command.strip().split())
-    if not text:
+    raw = " ".join(command.strip().split())
+    if not raw:
         raise HTTPException(status_code=422, detail="No voice command was recognized")
+    # Speech to text may send Hindi script, Hinglish or number words. Match on cleaned Latin text.
+    text = voice_text.numberize(voice_text.to_latin(raw))
     low = text.casefold()
-    if re.search(r"\b(read|show|tell me)\b.*\b(today'?s|today)\b.*\b(dm|message|inbox)s?\b", low):
-        rows = db.scalars(select(Conversation).where(Conversation.business_id == business_id,
-            Conversation.last_message_at >= utcnow().replace(hour=0, minute=0, second=0, microsecond=0))
-            .order_by(Conversation.last_message_at.desc()).limit(20)).all()
-        summary = "No DMs today." if not rows else f"You have {len(rows)} chats updated today. " + "; ".join(
-            f"{c.display_name}: {c.last_preview}" for c in rows[:5])
-        _log(db, business_id, actor_id, "read", "today's DMs")
-        db.commit()
-        return {"type": "read_only", "text": summary}
-    if re.search(r"\b(read|show|tell me)\b.*\blow stock\b", low):
-        items = db.scalars(select(CatalogItem).where(CatalogItem.business_id == business_id,
-            CatalogItem.active.is_(True), CatalogItem.kind == "ready_stock", CatalogItem.quantity <= inventory_service.LOW_STOCK_AT)
-            .order_by(CatalogItem.quantity, CatalogItem.name)).all()
-        summary = "No items are low on stock." if not items else "Low stock: " + "; ".join(
-            f"{item.name}, {item.quantity or 0} left" for item in items)
-        _log(db, business_id, actor_id, "read", "low stock")
-        db.commit()
-        return {"type": "read_only", "text": summary}
-    match = re.search(r"\b(?:restock|add stock)\s+(\d+)\s+(?:to\s+)?(.+)$", text, re.I)
-    if match:
-        qty, name = int(match.group(1)), match.group(2).strip(" .")
-        item = db.scalar(select(CatalogItem).where(CatalogItem.business_id == business_id,
-            func.lower(CatalogItem.name) == name.casefold(), CatalogItem.kind == "ready_stock", CatalogItem.active.is_(True)))
-        if item is None or qty < 1:
-            raise HTTPException(status_code=422, detail="I could not match that ready stock item and quantity")
-        return _proposal(db, business_id, actor_id, session_id, "restock", {"item_id": item.id, "quantity": qty},
-                         f"Add {qty} to {item.name} (current stock {item.quantity or 0})")
-    match = re.search(r"\b(?:reply|send reply)\s+(?:to\s+)?(?:chat\s+)?(\d+)\s+(?:saying|with)\s+(.+)$", text, re.I)
-    if match:
-        conv_id, reply = int(match.group(1)), match.group(2).strip(" \"'")
-        conv = db.get(Conversation, conv_id)
+    items = _active_items(db, business_id)
+    mentioned = voice_text.find_items(low, items)
+
+    # 1. Reply: the message itself is taken from the original words, never rewritten.
+    match = re.search(r"\b(?:reply|send reply)\s+(?:to\s+)?(?:chat\s+)?(\w+)\s+(?:saying|with)\s+(.+)$", raw, re.I)
+    number = voice_text.word_to_int(match.group(1)) if match else None
+    if match and number is not None:
+        reply = match.group(2).strip(" \"'")
+        conv = db.get(Conversation, number)
         if conv is None or conv.business_id != business_id or not reply:
             raise HTTPException(status_code=404, detail="Chat or reply not found")
         return _proposal(db, business_id, actor_id, session_id, "send_reply", {"conversation_id": conv.id, "text": reply[:1000]},
                          f"Reply to {conv.display_name}: {reply[:180]}")
+
+    # 2. Restock: a verb, a number and an item.
+    qty_match = re.search(r"\b(\d{1,6})\b", low) or re.search(r"\b(do)\b(?=.*\b(?:add|jodo|jod|restock)\b)", low)
+    if re.search(r"\b(restock|add stock|add|received|stock up|jodo|jod do|badhao)\b", low) and qty_match:
+        qty = 2 if qty_match.group(1) == "do" else int(qty_match.group(1))
+        if len(mentioned) != 1 or mentioned[0].kind != "ready_stock" or qty < 1:
+            raise HTTPException(status_code=422, detail="I could not match that ready stock item and quantity")
+        item = mentioned[0]
+        return _proposal(db, business_id, actor_id, session_id, "restock", {"item_id": item.id, "quantity": qty},
+                         f"Add {qty} to {item.name} (current stock {item.quantity or 0})")
+
+    # 3. Voice order: "rahul bought 80 roses, total 1600"
     if re.search(r"\b(?:bought|ordered|purchased|khareede|ne liye)\b", low):
         from ..ai.extractor import parse_voice_order
         parsed = parse_voice_order(text)
@@ -84,8 +100,8 @@ def process_command(db: Session, business_id: int, actor_id: int, session_id: st
         names = []
         for draft in parsed["items"]:
             name = draft["name"].strip()
-            item = db.scalar(select(CatalogItem).where(CatalogItem.business_id == business_id,
-                func.lower(CatalogItem.name) == name.casefold(), CatalogItem.active.is_(True)))
+            found = voice_text.find_items(name, items)
+            item = found[0] if len(found) == 1 else next((i for i in items if i.name.casefold() == name.casefold()), None)
             if item is None:
                 raise HTTPException(status_code=422, detail=f"Could not find ‘{name}’ in the active catalog")
             lines.append({"catalog_item_id": item.id, "quantity": int(draft["quantity"])})
@@ -96,9 +112,41 @@ def process_command(db: Session, business_id: int, actor_id: int, session_id: st
                                 "handle": customer.get("handle")}, "items": lines, "transcript": text[:400]}
         return _proposal(db, business_id, actor_id, session_id, "create_order", payload,
                          f"Create order for {customer['name']}: {', '.join(names)}. Prices will come from your catalog.")
-    _log(db, business_id, actor_id, "unmatched", text[:200])
+
+    # 4. Low stock
+    if re.search(r"\blow\b.*\bstock\b|\bstock\b.*\blow\b|running low|\bkam stock\b|\bstock kam\b|\bkya kam\b", low):
+        low_items = [i for i in items if i.kind == "ready_stock" and (i.quantity or 0) <= inventory_service.LOW_STOCK_AT]
+        low_items.sort(key=lambda i: (i.quantity or 0, i.name))
+        summary = "No items are low on stock." if not low_items else "Low stock: " + "; ".join(
+            f"{i.name}, {i.quantity or 0} left" for i in low_items)
+        return _read(db, business_id, actor_id, "low stock", summary)
+
+    # 5. Today's DMs
+    if re.search(r"\b(dms?|messages?|inbox|chats?)\b", low) and re.search(r"\b(read|show|tell|check|any|new|today|todays|aaj)\b", low):
+        rows = db.scalars(select(Conversation).where(Conversation.business_id == business_id,
+            Conversation.last_message_at >= utcnow().replace(hour=0, minute=0, second=0, microsecond=0))
+            .order_by(Conversation.last_message_at.desc()).limit(20)).all()
+        summary = "No DMs today." if not rows else f"You have {len(rows)} chats updated today. " + "; ".join(
+            f"{c.display_name}: {c.last_preview}" for c in rows[:5])
+        return _read(db, business_id, actor_id, "today's DMs", summary)
+
+    # 6. "How many roses are left?" and the Hinglish forms
+    asks_stock = re.search(r"\b(how many|how much|kitne|kitna|kitni|stock|left|bache|bacha|bachi|remaining|available|in stock|do i have|hai kya|inventory)\b", low)
+    if asks_stock:
+        if mentioned:
+            return _read(db, business_id, actor_id, "stock question", " ".join(_stock_line(db, i) for i in mentioned[:5]))
+        if re.search(r"\b(all|everything|overall|inventory|my stock)\b", low):
+            ready = [i for i in items if i.kind == "ready_stock"][:8]
+            summary = "No ready-stock items yet." if not ready else "Stock: " + "; ".join(f"{i.name} {i.quantity or 0}" for i in ready)
+            return _read(db, business_id, actor_id, "stock overview", summary)
+        names = ", ".join(i.name for i in items[:8]) or "none yet"
+        _log(db, business_id, actor_id, "unmatched", raw[:200])
+        db.commit()
+        return {"type": "needs_clarification", "text": f"Which item do you mean? Your items: {names}."}
+
+    _log(db, business_id, actor_id, "unmatched", raw[:200])
     db.commit()
-    return {"type": "needs_clarification", "text": "Try ‘read today’s DMs’, ‘read low stock’, ‘restock 4 to [item]’, or ‘reply to chat [number] saying [message]’."}
+    return {"type": "needs_clarification", "text": HELP_TEXT}
 
 
 def confirm_proposal(db: Session, business_id: int, actor_id: int, session_id: str, token: str,
