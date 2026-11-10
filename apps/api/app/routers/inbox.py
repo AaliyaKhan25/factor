@@ -10,7 +10,7 @@ from ..models.message import Message
 from ..models.order import Order
 from ..services.courier_service import get_shipment, shipment_view
 from ..schemas.inbox import ConvStatusIn, ReplyIn, SimulateIn
-from ..services import activity_service, conversation_service
+from ..services import activity_service, conversation_service, payment_service
 
 router = APIRouter(prefix="/inbox", tags=["inbox"])
 Chat = Depends(require_permission("reply_to_chats"))
@@ -47,7 +47,8 @@ def _detail(db: Session, c: Conversation) -> dict:
         **_summary(c),
         "messages": [{"id": m.id, "direction": m.direction, "sender": m.sender, "text": m.text, "created_at": m.created_at} for m in msgs],
         "orders": [{"id": o.id, "code": o.code, "status": o.status, "total_paise": o.total_paise,
-                    "created_at": o.created_at, "tracking": shipment_view(get_shipment(db, c.business_id, o.id))}
+                    "created_at": o.created_at, "payment": payment_service.payment_view(db, o),
+                    "tracking": shipment_view(get_shipment(db, c.business_id, o.id))}
                    for o in orders],
     }
 

@@ -92,3 +92,48 @@ def test_order_confirmation_sends_qr_image_to_customer_phone(client, session_fac
     assert sent["payload"]["to"] == "919000000001"
     assert sent["payload"]["type"] == "image"
     assert "/qr.png?signature=" in sent["payload"]["image"]["link"]
+
+
+def test_dm_order_booking_shows_qr_on_its_linked_order(client, session_factory):
+    owner, item = _shop_with_upi(client, session_factory)
+    created = client.post("/inbox/simulate", headers=owner, json={
+        "channel": "whatsapp", "handle": "+91 90000 00001", "name": "Riya", "text": "1 Sage tote confirm",
+    })
+    assert created.status_code == 201, created.text
+    conversation = created.json()
+    assert len(conversation["orders"]) == 1
+    order = conversation["orders"][0]
+    assert order["payment"]["upi_ready"]
+    assert "/payments/public/" in order["payment"]["qr_path"] and "signature=" in order["payment"]["qr_path"]
+    detail = client.get(f"/inbox/conversations/{conversation['id']}", headers=owner).json()
+    assert detail["orders"][0]["payment"]["payment_link"]
+    assert any("UPI QR is attached" in message["text"] for message in detail["messages"])
+
+
+def test_instagram_dm_order_sends_image_attachment_when_sender_is_configured(client, session_factory, monkeypatch):
+    from types import SimpleNamespace
+    from app.services import payment_service
+
+    owner, _ = _shop_with_upi(client, session_factory)
+    monkeypatch.setattr(payment_service, "settings", SimpleNamespace(
+        jwt_secret="test-secret", public_app_url="https://factor.example", public_api_url="https://api.factor.example",
+        whatsapp_token="", whatsapp_phone_id="", instagram_access_token="ig-token", instagram_account_id="ig-account",
+        meta_graph_api_version="v27.0"))
+    sent = {}
+
+    class Accepted:
+        def raise_for_status(self):
+            return None
+
+    def fake_post(url, *, headers, json, timeout):
+        sent.update(url=url, headers=headers, payload=json)
+        return Accepted()
+
+    monkeypatch.setattr(payment_service.httpx, "post", fake_post)
+    response = client.post("/inbox/simulate", headers=owner, json={
+        "channel": "instagram", "handle": "17890000000001", "name": "Riya", "text": "1 Sage tote confirm",
+    })
+    assert response.status_code == 201, response.text
+    assert sent["payload"]["recipient"]["id"] == "17890000000001"
+    assert sent["payload"]["message"]["attachment"]["type"] == "image"
+    assert "/qr.png?signature=" in sent["payload"]["message"]["attachment"]["payload"]["url"]

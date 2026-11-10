@@ -1,6 +1,6 @@
 "use client";
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { api, CatalogItem, Conversation, ConversationDetail, InboxCounts } from "@/lib/api";
+import { api, API_URL, CatalogItem, Conversation, ConversationDetail, InboxCounts } from "@/lib/api";
 import { clock, initials, rupees, timeAgo } from "@/lib/format";
 import { usePolling } from "@/hooks/usePolling";
 import Badge from "@/components/ui/Badge";
@@ -135,6 +135,12 @@ function Thread({ id, onBack, onChanged }: { id: number; onBack: () => void; onC
               </div>
             </div>
           ))}
+          <div className="space-y-3 lg:hidden">
+            {c.orders.filter((order) => order.payment?.upi_ready && order.payment.qr_path).map((order) => <article key={order.id} className="mx-auto flex max-w-sm items-center gap-3 rounded-2xl border border-brand/30 bg-white p-3 shadow-sm">
+              <img src={`${API_URL}${order.payment!.qr_path}`} alt={`Payment QR for ${order.code}`} className="h-24 w-24 rounded-lg border border-line p-1" />
+              <div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-wide text-brand-dark">UPI QR · {order.code}</p><p className="mt-1 text-sm font-bold">{rupees(order.total_paise)}</p><p className="text-xs text-stone-500">Pay to {order.payment!.payee_name}</p><Link href={`/orders/${order.id}`} className="mt-2 inline-block text-xs font-semibold text-brand-dark underline">Open linked order</Link></div>
+            </article>)}
+          </div>
           <div ref={bottom} />
         </div>
         <aside className="hidden min-h-0 space-y-3 overflow-y-auto border-l border-line bg-white p-3 lg:block">
@@ -142,6 +148,7 @@ function Thread({ id, onBack, onChanged }: { id: number; onBack: () => void; onC
           {c.orders.map((order) => <Link href={`/orders/${order.id}`} key={order.id} className="block rounded-xl border border-line bg-cream/50 p-3 hover:border-brand-dark">
             <span className="flex items-center justify-between gap-2"><b className="text-sm">{order.code}</b><span className="text-[10px] capitalize text-stone-500">{order.status}</span></span>
             <span className="mt-1 block text-xs text-stone-600">{rupees(order.total_paise)}</span>
+            {order.payment?.upi_ready&&order.payment.qr_path?<span className="mt-2 flex items-center gap-2 rounded-lg bg-white p-2"><img src={`${API_URL}${order.payment.qr_path}`} alt={`Payment QR for ${order.code}`} className="h-20 w-20 rounded border border-line p-1"/><span className="min-w-0 text-[11px] text-stone-600"><b className="block text-ink">UPI QR attached</b>Pay to {order.payment.payee_name}<span className="mt-1 block">Scan for {rupees(order.total_paise)}</span></span></span>:null}
             {order.tracking ? <span className="mt-2 block rounded-lg bg-brand-soft p-2 text-xs"><b>{order.tracking.courier_name}</b><span className="block capitalize">{order.tracking.status.replaceAll("_", " ")}</span><span className="mt-0.5 block font-mono">AWB {order.tracking.awb}</span>{order.tracking.tracking_url ? <span className="mt-1 block underline">Open tracking ↗</span> : null}</span> : <span className="mt-2 block text-[11px] text-stone-400">No courier update yet</span>}
           </Link>)}
           {c.orders.length === 0 ? <p className="text-xs text-stone-400">No linked orders.</p> : null}

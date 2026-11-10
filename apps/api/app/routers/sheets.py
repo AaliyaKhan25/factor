@@ -32,6 +32,7 @@ def get_sheet_status(ctx: Ctx = Depends(get_admin_ctx), db: Session = Depends(ge
     return sheet_sync_service.status(db, ctx.business_id)
 
 
+@router.post("")
 @router.put("")
 def connect_sheet(body: SheetConnectIn, ctx: Ctx = Depends(get_admin_ctx), db: Session = Depends(get_db)):
     sheet_id = _sheet_id(body.spreadsheet_url)

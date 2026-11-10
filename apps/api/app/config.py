@@ -41,6 +41,8 @@ class Settings:
     public_api_url: str = os.environ.get("PUBLIC_API_URL", "http://localhost:8000").rstrip("/")
     whatsapp_token: str = os.environ.get("WHATSAPP_TOKEN", "")
     whatsapp_phone_id: str = os.environ.get("WHATSAPP_PHONE_ID", "")
+    instagram_access_token: str = os.environ.get("INSTAGRAM_ACCESS_TOKEN", "")
+    instagram_account_id: str = os.environ.get("INSTAGRAM_ACCOUNT_ID", "")
     meta_graph_api_version: str = os.environ.get("META_GRAPH_API_VERSION", "v27.0")
     # Gnani.ai Voice & Indic Speech Integrator
     gnani_api_key: str = os.environ.get("GNANI_API_KEY", "")

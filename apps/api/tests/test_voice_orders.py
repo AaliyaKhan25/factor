@@ -85,6 +85,34 @@ def test_voice_order_status_requires_tap_confirmation(client):
     assert client.get(f"/orders/{created['id']}", headers=owner).json()["status"] == "confirmed"
 
 
+def test_voice_parser_accepts_create_order_phrase_and_named_catalog_quantities(client):
+    owner, _ = new_owner(client)
+    item = client.post("/catalog", json={"name": "Sage tote", "kind": "ready_stock", "price_paise": 12000, "quantity": 8}, headers=owner).json()
+    response = client.post("/voice/commands", headers=owner, json={"text": "Create an order for Riya: two Sage totes"})
+    assert response.status_code == 200, response.text
+    assert response.json()["type"] == "proposal"
+    assert "2 × Sage tote" in response.json()["summary"]
+
+
+def test_audio_command_explains_missing_gnani_key(client, monkeypatch):
+    from app.ai import speech
+    monkeypatch.setattr(speech, "is_gnani_configured", lambda: False)
+    owner, _ = new_owner(client)
+    response = client.post("/voice/transcribe-and-command", headers=owner,
+                           json={"audio_base64": "UklGRg==", "content_type": "audio/wav", "language": "indic-auto"})
+    assert response.status_code == 503
+    assert "Set GNANI_API_KEY" in response.json()["detail"]
+
+
+def test_gnani_token_alias_is_detected_as_configured(monkeypatch):
+    from types import SimpleNamespace
+    from app.ai import speech
+    monkeypatch.setattr(speech, "settings", SimpleNamespace(gnani_api_key="", gnani_token="server-token"))
+    monkeypatch.delenv("GNANI_API_KEY", raising=False)
+    monkeypatch.delenv("GNANI_TOKEN", raising=False)
+    assert speech.is_gnani_configured()
+
+
 def test_voice_proposal_is_bound_to_signed_in_user(client):
     owner, _ = new_owner(client)
     client.post("/catalog", json={"name": "Roses", "kind": "ready_stock", "price_paise": 2000, "quantity": 15}, headers=owner)

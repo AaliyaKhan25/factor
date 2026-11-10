@@ -28,6 +28,7 @@ const PATHS: Record<string, string> = {
   close: "M18 6L6 18M6 6l12 12",
   mic: "M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3zM19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8",
   waveform: "M3 10v4M7 6v12M11 3v18M15 7v10M19 10v4",
+  search: "M11 19a8 8 0 110-16 8 8 0 010 16zM21 21l-4.35-4.35",
 };
 
 export default function Icon({

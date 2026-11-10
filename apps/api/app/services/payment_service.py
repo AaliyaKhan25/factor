@@ -144,7 +144,7 @@ def pending_orders(db: Session, business_id: int) -> list[dict]:
 
 
 def notify_customer(db: Session, order: Order) -> dict:
-    """Send a payment-page link over WhatsApp when configured; otherwise make it share-ready."""
+    """Send the signed QR over the order's connected messaging channel when configured."""
     payment = payment_view(db, order)
     if not payment["upi_ready"]:
         return {"status": "needs_upi", "message": "Add the business UPI ID before sending a payment request."}
@@ -152,29 +152,44 @@ def notify_customer(db: Session, order: Order) -> dict:
         Conversation.business_id == order.business_id,
         Conversation.customer_id == order.customer_id,
     ).order_by(Conversation.last_message_at.desc()).limit(1))
-    if not settings.whatsapp_token or not settings.whatsapp_phone_id:
+    customer = db.get(Customer, order.customer_id)
+    channel = conversation.channel if conversation else "whatsapp"
+    if channel == "whatsapp" and settings.whatsapp_token and settings.whatsapp_phone_id:
+        access_token = settings.whatsapp_token
+        sender_id = settings.whatsapp_phone_id
+    elif channel == "instagram" and settings.instagram_access_token and settings.instagram_account_id:
+        access_token = settings.instagram_access_token
+        sender_id = settings.instagram_account_id
+    else:
         activity_service.log(db, business_id=order.business_id, actor_user_id=order.created_by,
                              action="payment.link_ready", entity="order", entity_id=order.id,
-                             detail="No WhatsApp sender configured; the payment page is ready to share manually.")
+                             detail=f"No {channel} sender configured; the payment page is ready to share manually.")
         db.commit()
         return {"status": "ready_to_share", "payment_link": payment["payment_link"],
-                "message": "Payment link is ready. Connect WhatsApp to send the QR to the customer."}
+                "message": f"Payment QR is ready on the order. Connect {channel.title()} sending to deliver it to the customer."}
 
-    customer = db.get(Customer, order.customer_id)
-    recipient = conversation.handle if conversation and conversation.channel == "whatsapp" else (customer.phone or "")
+    recipient = (conversation.handle if conversation else (customer.phone if customer else "")) if channel == "whatsapp" else (conversation.handle if conversation else "")
     to = "".join(c for c in recipient if c.isdigit())
-    if len(to) == 10:
-        to = "91" + to
-    if len(to) < 10:
+    if channel == "whatsapp":
+        if len(to) == 10:
+            to = "91" + to
+        if len(to) < 10:
+            return {"status": "ready_to_share", "payment_link": payment["payment_link"],
+                    "message": "Customer WhatsApp number is missing; payment QR is ready on the order."}
+    elif not recipient:
         return {"status": "ready_to_share", "payment_link": payment["payment_link"],
-                "message": "Customer WhatsApp number is missing; payment link is ready to share."}
+                "message": "Customer account ID is missing; payment QR is ready on the order."}
     text = f"Payment for order {order.code} · ₹{order.total_paise / 100:.2f}. Scan this QR to pay, or open: {payment['payment_link']}"
-    url = f"https://graph.facebook.com/{settings.meta_graph_api_version}/{settings.whatsapp_phone_id}/messages"
+    url = f"https://graph.facebook.com/{settings.meta_graph_api_version}/{sender_id}/messages"
     image_url = f"{settings.public_api_url}/payments/public/{order.id}/qr.png?signature={signature(order)}"
+    if channel == "whatsapp":
+        payload = {"messaging_product": "whatsapp", "to": to, "type": "image",
+                   "image": {"link": image_url, "caption": text}}
+    else:
+        payload = {"recipient": {"id": recipient}, "message": {"attachment": {
+            "type": "image", "payload": {"url": image_url, "is_reusable": False}}}}
     try:
-        response = httpx.post(url, headers={"Authorization": f"Bearer {settings.whatsapp_token}"},
-            json={"messaging_product": "whatsapp", "to": to, "type": "image",
-                  "image": {"link": image_url, "caption": text}}, timeout=12)
+        response = httpx.post(url, headers={"Authorization": f"Bearer {access_token}"}, json=payload, timeout=12)
         response.raise_for_status()
     except (httpx.HTTPError, ValueError) as exc:
         activity_service.log(db, business_id=order.business_id, actor_user_id=order.created_by,
@@ -182,13 +197,13 @@ def notify_customer(db: Session, order: Order) -> dict:
                              detail=str(exc)[:450])
         db.commit()
         return {"status": "failed", "payment_link": payment["payment_link"],
-                "message": "WhatsApp did not accept the payment request. The link is available to share manually."}
+                "message": f"{channel.title()} did not accept the payment QR. The link is available to share manually."}
 
-    if conversation and conversation.channel == "whatsapp":
+    if conversation:
         conversation_service.add_message(db, conversation, "out", "agent", text)
     activity_service.log(db, business_id=order.business_id, actor_user_id=order.created_by,
                          action="payment.link_sent", entity="order", entity_id=order.id,
-                         detail=f"WhatsApp accepted a payment link for {order.code}.")
+                         detail=f"{channel.title()} accepted a payment QR for {order.code}.")
     db.commit()
-    return {"status": "accepted_by_whatsapp", "payment_link": payment["payment_link"],
-            "message": "WhatsApp accepted the payment link for delivery."}
+    return {"status": f"accepted_by_{channel}", "payment_link": payment["payment_link"],
+            "message": f"{channel.title()} accepted the payment QR for delivery."}

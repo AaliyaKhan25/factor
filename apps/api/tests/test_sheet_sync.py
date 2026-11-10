@@ -8,6 +8,8 @@ def test_sheet_link_validation_and_raw_snapshot_tabs(client, monkeypatch):
     link = "https://docs.google.com/spreadsheets/d/abc_def-123/edit#gid=0"
     connected = client.put("/sheets", headers=owner, json={"spreadsheet_url": link})
     assert connected.status_code == 200 and connected.json()["connected"] is True
+    # Keep POST compatibility for older/stale browser bundles still using the generic JSON helper.
+    assert client.post("/sheets", headers=owner, json={"spreadsheet_url": link}).status_code == 200
     item = client.post("/catalog", headers=owner, json={"name": "Safe", "kind": "ready_stock", "price_paise": 1000, "quantity": 2}).json()
     order = client.post("/orders", headers=owner, json={"customer": {"name": "=IMPORTXML(\"https://bad\")"},
         "items": [{"catalog_item_id": item["id"], "quantity": 1}]}).json()

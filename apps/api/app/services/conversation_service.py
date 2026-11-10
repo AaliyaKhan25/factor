@@ -10,7 +10,7 @@ from ..models.customer import Customer
 from ..models.message import Message
 from ..schemas.orders import CustomerIn
 from ..utils.time import utcnow
-from . import agent_service, order_service
+from . import agent_service, order_service, payment_service
 
 
 def add_message(db: Session, conv: Conversation, direction: str, sender: str, text: str) -> Message:
@@ -66,13 +66,13 @@ def ingest(db: Session, business_id: int, channel: str, handle: str, name: str, 
         customer = db.get(Customer, order.customer_id)
         conv.customer_id = customer.id
         conv.reason = f"Order {order.code} booked"
+        payment_delivery = payment_service.notify_customer(db, order)
         qty, _ = (int(x) for x in decision.order_note.split("|"))
         lines = ", ".join(f"{i.quantity} x {i.name}" for i in _lines(db, order.id))
-        add_message(
-            db, conv, "out", "agent",
-            f"Booked! Your order {order.code}: {lines}, total {agent_service.rupees(order.total_paise)}. "
-            "The owner will share payment details shortly.",
-        )
+        if payment_delivery["status"] not in {"accepted_by_whatsapp", "accepted_by_instagram"}:
+            suffix = "Your UPI QR is attached to the linked order." if payment_service.payment_view(db, order)["upi_ready"] else "The owner will add payment details shortly."
+            add_message(db, conv, "out", "agent",
+                        f"Booked! Your order {order.code}: {lines}, total {agent_service.rupees(order.total_paise)}. {suffix}")
         return conv
 
     if decision.reply:
