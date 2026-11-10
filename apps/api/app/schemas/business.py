@@ -11,3 +11,10 @@ class BusinessCreate(BaseModel):
     upi_id: str | None = Field(default=None, pattern=r"^[\w.\-]{2,}@[A-Za-z]{2,}$")
     language: Literal["en", "hi"] = "en"
     template: Literal["general", "rental", "handmade", "tiffin"] = "general"
+
+
+class BusinessUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=2, max_length=160)
+    upi_id: str | None = Field(default=None, pattern=r"^[\w.\-]{2,}@[A-Za-z]{2,}$")

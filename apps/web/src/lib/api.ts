@@ -114,6 +114,20 @@ export type OrderDetail = OrderSummary & {
   next_statuses: string[];
   tracking?: CourierTracking | null;
   linked_conversation?: { id: number; channel: string; display_name: string } | null;
+  payment?: PaymentInfo;
+};
+export type PaymentInfo = {
+  upi_ready: boolean;
+  payee_name: string;
+  upi_id: string | null;
+  amount_paise: number;
+  upi_uri: string | null;
+  payment_link: string | null;
+  qr_path: string | null;
+};
+export type PendingPayment = PaymentInfo & {
+  id: number; code: string; status: string; payment_status: string;
+  total_paise: number; customer_name: string; created_at: string;
 };
 export type Customer = {
   id: number;

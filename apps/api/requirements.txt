@@ -7,6 +7,7 @@ pydantic>=2
 email-validator
 pyjwt
 httpx
+qrcode>=7.4
 google-auth[requests]>=2.30
 cryptography>=42
 pytest

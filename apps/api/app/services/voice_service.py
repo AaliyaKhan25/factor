@@ -13,10 +13,11 @@ from ..models.activity_log import ActivityLog
 from ..models.catalog_item import CatalogItem
 from ..models.conversation import Conversation
 from ..models.message import Message
+from ..models.order import Order
 from ..models.stock_log import StockLog
 from ..models.voice_proposal import VoiceProposal
 from ..schemas.orders import CustomerIn, LineIn, OrderCreate
-from ..services import activity_service, conversation_service, inventory_service
+from ..services import activity_service, conversation_service, inventory_service, order_service, payment_service
 from ..utils.time import utcnow
 
 
@@ -38,7 +39,8 @@ def _proposal(db: Session, business_id: int, actor_id: int, session_id: str, act
 
 
 HELP_TEXT = ("Try: ‘how many [item] are left’, ‘read low stock’, ‘read today’s DMs’, "
-             "‘restock 4 to [item]’, or ‘reply to chat [number] saying [message]’.")
+             "‘restock 4 to [item]’, ‘count 12 for [item]’, ‘confirm order ORD-1001’, "
+             "or ‘Rahul ordered 2 [item]’.")
 
 
 def _active_items(db: Session, business_id: int) -> list[CatalogItem]:
@@ -80,6 +82,39 @@ def process_command(db: Session, business_id: int, actor_id: int, session_id: st
             raise HTTPException(status_code=404, detail="Chat or reply not found")
         return _proposal(db, business_id, actor_id, session_id, "send_reply", {"conversation_id": conv.id, "text": reply[:1000]},
                          f"Reply to {conv.display_name}: {reply[:180]}")
+
+    # Order pipeline actions are proposals too; cancellation can never happen from an unreviewed transcript.
+    status_command = re.search(
+        r"\b(confirm|pack|mark|ship|deliver|cancel|confirm\s+the|pack\s+the|ship\s+the|cancel\s+the)\s+(?:the\s+)?order\s+(ord[- ]?\d+)\b"
+        r"|\border\s+(ord[- ]?\d+)\s+(?:as\s+)?(confirmed|packed|shipped|delivered|cancelled|canceled)\b", low)
+    if status_command:
+        code = (status_command.group(2) or status_command.group(3)).replace(" ", "").upper()
+        verb = status_command.group(1) or status_command.group(4)
+        target = {"confirm": "confirmed", "confirmed": "confirmed", "pack": "packed", "packed": "packed",
+                  "mark": None, "ship": "shipped", "shipped": "shipped", "deliver": "delivered",
+                  "delivered": "delivered", "cancel": "cancelled", "cancelled": "cancelled", "canceled": "cancelled"}.get(verb)
+        if target is None and verb == "mark":
+            tail = low[status_command.end():]
+            target = next((s for s in ("confirmed", "packed", "shipped", "delivered", "cancelled", "canceled") if s in tail), None)
+            if target == "canceled": target = "cancelled"
+        order = db.scalar(select(Order).where(Order.business_id == business_id, Order.code == code))
+        if order is None:
+            raise HTTPException(status_code=404, detail=f"Order {code} was not found")
+        if target is None or target not in order_service.TRANSITIONS[order.status]:
+            allowed = ", ".join(order_service.TRANSITIONS[order.status]) or "none"
+            raise HTTPException(status_code=409, detail=f"Order {code} is {order.status}; allowed next steps: {allowed}")
+        return _proposal(db, business_id, actor_id, session_id, "order_status",
+                         {"order_id": order.id, "status": target}, f"Mark order {code} as {target}")
+
+    # Physical count: support both imperative and spoken past-tense forms.
+    count_match = re.search(r"\b(?:count|counted|stock count|ginti)\s+(\d{1,6})\b", low)
+    if count_match or ("ginti" in low and re.search(r"\d{1,6}", low)):
+        qty = int(count_match.group(1)) if count_match else int(re.search(r"\d{1,6}", low).group(0))
+        if len(mentioned) != 1 or mentioned[0].kind != "ready_stock":
+            raise HTTPException(status_code=422, detail="Say ‘count [quantity] for [ready stock item]’ so I can identify one item")
+        item = mentioned[0]
+        return _proposal(db, business_id, actor_id, session_id, "stock_count", {"item_id": item.id, "quantity": qty},
+                         f"Set {item.name} stock to {qty} (currently {item.quantity or 0})")
 
     # 2. Restock: a verb, a number and an item.
     qty_match = re.search(r"\b(\d{1,6})\b", low) or re.search(r"\b(do)\b(?=.*\b(?:add|jodo|jod|restock)\b)", low)
@@ -172,6 +207,24 @@ def confirm_proposal(db: Session, business_id: int, actor_id: int, session_id: s
         from .sheet_sync_service import enqueue_sync
         enqueue_sync(db, business_id)
         result = {"type": "completed", "text": f"Added {row.payload['quantity']} to {item.name}.", "item_id": item.id}
+    elif row.action == "stock_count":
+        item = db.get(CatalogItem, row.payload["item_id"])
+        if item is None or item.business_id != business_id:
+            raise HTTPException(status_code=404, detail="Inventory item not found")
+        inventory_service.count(db, item, row.payload["quantity"], actor_id, "Stock count confirmed by voice")
+        from .sheet_sync_service import enqueue_sync
+        enqueue_sync(db, business_id)
+        result = {"type": "completed", "text": f"Counted {item.name}: now {row.payload['quantity']}.", "item_id": item.id}
+    elif row.action == "order_status":
+        order = db.get(Order, row.payload["order_id"])
+        if order is None or order.business_id != business_id:
+            raise HTTPException(status_code=404, detail="Order not found")
+        order_service.change_status(db, order, row.payload["status"], actor_id)
+        activity_service.log(db, business_id=business_id, actor_user_id=actor_id, action="order.status",
+                             entity="order", entity_id=order.id, detail=row.payload["status"])
+        from .sheet_sync_service import enqueue_sync
+        enqueue_sync(db, business_id)
+        result = {"type": "completed", "text": f"Order {order.code} marked {order.status}.", "order_id": order.id}
     elif row.action == "send_reply":
         conv = db.get(Conversation, row.payload["conversation_id"])
         if conv is None or conv.business_id != business_id:
@@ -179,7 +232,6 @@ def confirm_proposal(db: Session, business_id: int, actor_id: int, session_id: s
         conversation_service.add_message(db, conv, "out", "owner", row.payload["text"])
         result = {"type": "completed", "text": "Reply saved to the chat.", "conversation_id": conv.id}
     elif row.action == "create_order":
-        from ..services import order_service
         payload = row.payload
         order = order_service.create_order(db, business_id, actor_id, OrderCreate(
             customer=CustomerIn(**payload["customer"]), source="voice",
@@ -197,4 +249,8 @@ def confirm_proposal(db: Session, business_id: int, actor_id: int, session_id: s
     row.consumed_at = utcnow()
     _log(db, business_id, actor_id, "confirm", row.summary)
     db.commit()
+    if row.action == "order_status" and row.payload["status"] == "confirmed":
+        order = db.get(Order, row.payload["order_id"])
+        result["payment_delivery"] = payment_service.notify_customer(db, order)
+        result["text"] += " " + result["payment_delivery"]["message"]
     return result

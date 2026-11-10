@@ -16,6 +16,11 @@ class Settings:
     meta_app_secret: str = os.environ.get("META_APP_SECRET", "")
     # Comma-separated browser origins allowed to call the API.
     cors_origins: str = os.environ.get("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
+    public_app_url: str = os.environ.get("PUBLIC_APP_URL", "http://localhost:3000").rstrip("/")
+    public_api_url: str = os.environ.get("PUBLIC_API_URL", "http://localhost:8000").rstrip("/")
+    whatsapp_token: str = os.environ.get("WHATSAPP_TOKEN", "")
+    whatsapp_phone_id: str = os.environ.get("WHATSAPP_PHONE_ID", "")
+    meta_graph_api_version: str = os.environ.get("META_GRAPH_API_VERSION", "v27.0")
     # Gnani.ai Voice & Indic Speech Integrator
     gnani_api_key: str = os.environ.get("GNANI_API_KEY", "")
     gnani_token: str = os.environ.get("GNANI_TOKEN", os.environ.get("GNANI_API_KEY", ""))

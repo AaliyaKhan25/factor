@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { API_URL, api, Channel } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { usePolling } from "@/hooks/usePolling";
@@ -59,6 +59,11 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [businessName, setBusinessName] = useState("");
+  const [upiId, setUpiId] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => { setBusinessName(business?.name ?? ""); setUpiId(business?.upi_id ?? ""); }, [business]);
 
   async function copy() {
     try { await navigator.clipboard.writeText(business?.business_code ?? ""); setCopied(true); setTimeout(() => setCopied(false), 1500); }
@@ -71,6 +76,15 @@ export default function SettingsPage() {
     catch (e) { setError(e instanceof Error ? e.message : "Failed"); } finally { setBusy(false); }
   }
 
+  async function savePaymentDetails() {
+    setBusy(true); setError(null); setSaved(false);
+    try {
+      await api("/business", { method: "PATCH", body: { name: businessName.trim(), upi_id: upiId.trim() || null } });
+      await refresh(); setSaved(true);
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not save business details"); }
+    finally { setBusy(false); }
+  }
+
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <h1 className="font-serif text-3xl font-bold">Settings</h1>
@@ -78,6 +92,14 @@ export default function SettingsPage() {
         <p className="text-sm text-stone-500">Business</p>
         <p className="text-lg font-bold">{business?.name}</p>
         <p className="text-sm text-stone-600">UPI: {business?.upi_id ?? "not set"} · Signed in as {user?.email}</p>
+        {isAdmin ? <div className="mt-4 grid gap-3 border-t border-line pt-4">
+          <p className="text-sm font-semibold">Payment QR details</p>
+          <label className="grid gap-1 text-xs font-semibold text-stone-600">Payee name<input className="rounded-xl border border-line bg-white px-3 py-2 text-sm font-normal text-ink" value={businessName} onChange={(e) => setBusinessName(e.target.value)} maxLength={160} /></label>
+          <label className="grid gap-1 text-xs font-semibold text-stone-600">UPI ID<input className="rounded-xl border border-line bg-white px-3 py-2 text-sm font-normal text-ink" value={upiId} onChange={(e) => setUpiId(e.target.value)} placeholder="name@bank" /></label>
+          <p className="text-xs text-stone-500">New payment QR codes use this payee name and UPI ID.</p>
+          <div className="flex items-center gap-3"><Button disabled={busy || !businessName.trim()} onClick={() => void savePaymentDetails()}>{busy ? "Saving…" : "Save payment details"}</Button>{saved ? <span role="status" className="text-xs text-brand-dark">Saved</span> : null}</div>
+          <ErrorText message={error} />
+        </div> : null}
         <div className="mt-3 flex gap-4 text-sm font-semibold text-brand-dark md:hidden">
           <Link href="/customers" className="underline">Customers</Link>
           {isAdmin ? <Link href="/setup/team" className="underline">Team</Link> : null}

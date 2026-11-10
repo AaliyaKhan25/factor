@@ -8,7 +8,7 @@ from . import models  # noqa: F401  (registers every model on Base.metadata)
 from .config import settings
 from .db import Base, engine
 from .routers import auth, business, catalog, channels, customers, dashboard, inbox, orders, team, voice
-from .routers import couriers, inventory, sheets, webhooks
+from .routers import couriers, inventory, payments, sheets, webhooks
 
 
 @asynccontextmanager
@@ -39,6 +39,7 @@ app.include_router(inventory.router)
 app.include_router(sheets.router)
 app.include_router(webhooks.router)
 app.include_router(couriers.router)
+app.include_router(payments.router)
 
 
 @app.get("/health")

@@ -11,7 +11,7 @@ from ..models.order_event import OrderEvent
 from ..models.order_item import OrderItem
 from ..models.conversation import Conversation
 from ..schemas.orders import OrderCreate, StatusChange
-from ..services import activity_service, order_service, sheet_sync_service
+from ..services import activity_service, order_service, payment_service, sheet_sync_service
 from ..services.courier_service import get_shipment, shipment_view
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -53,6 +53,7 @@ def _detail(db: Session, o: Order) -> dict:
         ],
         "events": [{"kind": e.kind, "detail": e.detail, "created_at": e.created_at} for e in events],
         "tracking": shipment_view(get_shipment(db, o.business_id, o.id)),
+        "payment": payment_service.payment_view(db, o),
         "linked_conversation": ({"id": conv.id, "channel": conv.channel, "display_name": conv.display_name} if conv else None),
         "next_statuses": list(order_service.TRANSITIONS[o.status]),
     }
@@ -116,4 +117,7 @@ def set_status(
     )
     db.commit()
     sheet_sync_service.enqueue_sync(db, ctx.business_id)
-    return _detail(db, order)
+    detail = _detail(db, order)
+    if body.status == "confirmed":
+        detail["payment_delivery"] = payment_service.notify_customer(db, order)
+    return detail

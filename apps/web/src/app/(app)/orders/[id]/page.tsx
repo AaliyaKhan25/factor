@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
-import { api, OrderDetail } from "@/lib/api";
+import { api, API_URL, OrderDetail } from "@/lib/api";
 import { clock, parseTime, rupees } from "@/lib/format";
 import { usePolling } from "@/hooks/usePolling";
 import Badge from "@/components/ui/Badge";
@@ -22,13 +22,18 @@ export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: o, error, reload } = usePolling(() => api<OrderDetail>(`/orders/${id}`), 6000, id);
   const [err, setErr] = useState<string | null>(null);
+  const [paymentMessage, setPaymentMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function move(status: string) {
     if (status === "cancelled" && !confirm("Cancel this order? Stock goes back to the catalog.")) return;
     setBusy(true);
     setErr(null);
-    try { await api(`/orders/${id}/status`, { body: { status } }); await reload(); } catch (e) { setErr(e instanceof Error ? e.message : "Failed"); } finally { setBusy(false); }
+    try {
+      const result = await api<{ payment_delivery?: { message: string } }>(`/orders/${id}/status`, { body: { status } });
+      setPaymentMessage(status === "confirmed" ? result.payment_delivery?.message ?? "Payment page is ready to share." : "");
+      await reload();
+    } catch (e) { setErr(e instanceof Error ? e.message : "Failed"); } finally { setBusy(false); }
   }
 
   if (error && !o) return <p className="rounded-xl bg-white p-4 text-stone-600">{error}</p>;
@@ -91,6 +96,7 @@ export default function OrderDetailPage() {
       </Card>
 
       <CourierTracking orderId={o.id} tracking={o.tracking} onUpdated={() => void reload()} />
+      {paymentMessage ? <p role="status" className="rounded-xl bg-brand-soft p-3 text-sm text-brand-dark">{paymentMessage}</p> : null}
       {o.linked_conversation ? <Card className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs text-stone-500">Linked customer chat</p><p className="font-semibold">{o.linked_conversation.display_name}</p></div><Link href={`/inbox?conversation=${o.linked_conversation.id}`} className="rounded-xl bg-brand-soft px-3 py-2 text-sm font-semibold text-brand-dark">Open chat</Link></Card> : null}
 
       <Card>
@@ -101,6 +107,11 @@ export default function OrderDetailPage() {
         </ul>
         <p className="mt-2 flex justify-between border-t border-line pt-3 text-lg font-bold"><span>Total</span><span>{rupees(o.total_paise)}</span></p>
       </Card>
+
+      {o.payment?.upi_ready && o.payment.qr_path ? <Card className="flex flex-wrap items-center gap-5">
+        <img className="h-36 w-36 rounded-xl border border-line bg-white p-2" src={`${API_URL}${o.payment.qr_path}`} alt={`UPI payment QR for ${o.code}`} />
+        <div className="min-w-52 flex-1"><p className="text-xs font-bold uppercase tracking-wide text-stone-500">UPI payment request</p><p className="mt-1 text-lg font-bold">{rupees(o.total_paise)}</p><p className="text-sm text-stone-600">{o.payment.payee_name} · {o.payment.upi_id}</p><div className="mt-3 flex flex-wrap gap-2"><a className="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-brand-dark" href={o.payment.upi_uri ?? undefined}>Pay in UPI app</a>{o.payment.payment_link ? <button className="rounded-xl border border-line px-4 py-2 text-sm font-semibold" onClick={() => void navigator.clipboard?.writeText(o.payment!.payment_link!)}>Copy customer link</button> : null}</div><p className="mt-2 text-xs text-stone-500">Verify the payment in your bank or UPI account before marking it paid.</p></div>
+      </Card> : <Card><p className="text-sm text-stone-600">Add a business UPI ID to generate a payment QR for this order.</p></Card>}
 
       {forward.length || canCancel ? (
         <Card className="space-y-3">

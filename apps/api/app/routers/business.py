@@ -7,7 +7,7 @@ from ..deps import Ctx, active_membership, get_admin_ctx, get_ctx, get_current_u
 from ..models.business import Business
 from ..models.membership import Membership
 from ..models.user import User
-from ..schemas.business import BusinessCreate
+from ..schemas.business import BusinessCreate, BusinessUpdate
 from ..services import activity_service, invite_service
 from ..utils.time import utcnow
 
@@ -66,6 +66,18 @@ def get_business(ctx: Ctx = Depends(get_ctx), db: Session = Depends(get_db)):
         code = invite_service.current_code(db, business.id)
         data["business_code"] = code.code if code else None
     return data
+
+
+@router.patch("")
+def update_business(body: BusinessUpdate, ctx: Ctx = Depends(get_admin_ctx), db: Session = Depends(get_db)):
+    business = db.get(Business, ctx.business_id)
+    changes = body.model_dump(exclude_unset=True)
+    if "name" in changes and changes["name"] is not None:
+        business.name = changes["name"].strip()
+    if "upi_id" in changes:
+        business.upi_id = changes["upi_id"].strip() if changes["upi_id"] else None
+    db.commit()
+    return {"id": business.id, "name": business.name, "upi_id": business.upi_id}
 
 
 @router.post("/code/regenerate")

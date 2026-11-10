@@ -58,6 +58,33 @@ def test_voice_read_only_command_returns_data_without_proposal(client):
     assert "No items" in r.json()["text"]
 
 
+def test_voice_inventory_count_is_proposed_then_written_to_ledger(client):
+    owner, _ = new_owner(client)
+    client.post("/catalog", json={"name": "Roses", "kind": "ready_stock", "price_paise": 2000, "quantity": 15}, headers=owner)
+    proposed = client.post("/voice/commands", json={"text": "count 12 for Roses"}, headers=owner).json()
+    assert proposed["type"] == "proposal"
+    assert "Set Roses stock to 12" in proposed["summary"]
+    done = client.post(f"/voice/proposals/{proposed['token']}/confirm", json={}, headers=owner)
+    assert done.status_code == 200, done.text
+    inventory = client.get("/inventory", headers=owner).json()["items"][0]
+    assert inventory["quantity"] == 12
+    history = client.get(f"/inventory/{inventory['id']}/history", headers=owner).json()["history"]
+    assert any(event["kind"] == "count" for event in history)
+
+
+def test_voice_order_status_requires_tap_confirmation(client):
+    owner, _ = new_owner(client)
+    item = client.post("/catalog", json={"name": "Roses", "kind": "ready_stock", "price_paise": 2000, "quantity": 15}, headers=owner).json()
+    created = client.post("/orders", headers=owner, json={"customer": {"name": "Riya"}, "items": [{"catalog_item_id": item["id"], "quantity": 1}]}).json()
+    proposed = client.post("/voice/commands", json={"text": f"confirm order {created['code']}"}, headers=owner).json()
+    assert proposed["type"] == "proposal"
+    assert client.get(f"/orders/{created['id']}", headers=owner).json()["status"] == "new"
+    assert client.post(f"/voice/proposals/{proposed['token']}/confirm", headers=owner, json={"voice_phrase": "yes"}).status_code == 403
+    done = client.post(f"/voice/proposals/{proposed['token']}/confirm", headers=owner, json={})
+    assert done.status_code == 200, done.text
+    assert client.get(f"/orders/{created['id']}", headers=owner).json()["status"] == "confirmed"
+
+
 def test_voice_proposal_is_bound_to_signed_in_user(client):
     owner, _ = new_owner(client)
     client.post("/catalog", json={"name": "Roses", "kind": "ready_stock", "price_paise": 2000, "quantity": 15}, headers=owner)
