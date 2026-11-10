@@ -39,7 +39,7 @@ def _proposal(db: Session, business_id: int, actor_id: int, session_id: str, act
 
 
 HELP_TEXT = ("Try: ‘how many [item] are left’, ‘read low stock’, ‘read today’s DMs’, "
-             "‘restock 4 to [item]’, ‘count 12 for [item]’, ‘confirm order ORD-1001’, "
+             "‘read inventory’, ‘show recent orders’, ‘restock 4 to [item]’, ‘count 12 for [item]’, ‘confirm order ORD-1001’, "
              "or ‘Rahul ordered 2 [item]’.")
 
 
@@ -56,10 +56,22 @@ def _stock_line(db: Session, item: CatalogItem) -> str:
     return f"{item.name}: {order_service.availability(db, item)} of {item.capacity} order slots free."
 
 
-def _read(db: Session, business_id: int, actor_id: int, what: str, text: str) -> dict:
+def _read(db: Session, business_id: int, actor_id: int, what: str, text: str, **data) -> dict:
     _log(db, business_id, actor_id, "read", what)
     db.commit()
-    return {"type": "read_only", "text": text}
+    return {"type": "read_only", "headline": "Here’s what I found", "intent": what, "text": text, **data}
+
+
+def _item_quantity(text: str, item: CatalogItem) -> int:
+    name = r"\s+".join(re.escape(token) for token in re.findall(r"[a-z0-9]+", item.name.casefold()))
+    if not name:
+        return 1
+    count = r"(\d{1,5}|one|two|three|four|five|six|seven|eight|nine|ten|ek|do|teen|char|chaar|paanch|chhe|saat|aath|nau|das|bees|tees|pachees|assi)"
+    match = re.search(rf"\b{count}\s*(?:x\s*)?(?:pieces?\s+of\s+|units?\s+of\s+)?{name}(?:s)?\b", text)
+    if match:
+        return voice_text.word_to_int(match.group(1)) or 1
+    match = re.search(rf"\b{name}(?:s)?\s*(?:x|\*)\s*(\d{{1,5}})\b", text)
+    return int(match.group(1)) if match else 1
 
 
 def process_command(db: Session, business_id: int, actor_id: int, session_id: str, command: str) -> dict:
@@ -83,9 +95,32 @@ def process_command(db: Session, business_id: int, actor_id: int, session_id: st
         return _proposal(db, business_id, actor_id, session_id, "send_reply", {"conversation_id": conv.id, "text": reply[:1000]},
                          f"Reply to {conv.display_name}: {reply[:180]}")
 
+    # An order number without an action is a search request; answer it instead of returning generic help.
+    order_lookup = re.search(r"\b(?:ord[- ]?\d+|order\s+\d{3,})\b", low)
+    if order_lookup and not re.search(r"\b(confirm|pack|mark|ship|deliver|cancel)\b", low):
+        code = re.sub(r"\s+", "", order_lookup.group(0)).upper()
+        if code.startswith("ORD"):
+            code = "ORD-" + re.sub(r"^ORD-?", "", code)
+        elif code.startswith("ORDER"):
+            code = "ORD-" + re.sub(r"^ORDER", "", code)
+        order = db.scalar(select(Order).where(Order.business_id == business_id, Order.code == code))
+        if order is None:
+            raise HTTPException(status_code=404, detail=f"I could not find {code}")
+        from ..models.customer import Customer
+        customer = db.get(Customer, order.customer_id)
+        summary = f"{order.code} for {customer.name if customer else 'customer'} is {order.status}; total {order.total_paise / 100:.2f} rupees, payment {order.payment_status}."
+        return _read(db, business_id, actor_id, "order lookup", summary,
+                     order={"id": order.id, "code": order.code, "status": order.status,
+                            "customer_name": customer.name if customer else "Customer", "total_paise": order.total_paise,
+                            "payment_status": order.payment_status},
+                     items=[{"id": order.id, "code": order.code,
+                             "customer_name": customer.name if customer else "Customer",
+                             "status": order.status, "total_paise": order.total_paise,
+                             "payment_status": order.payment_status}])
+
     # Order pipeline actions are proposals too; cancellation can never happen from an unreviewed transcript.
     status_command = re.search(
-        r"\b(confirm|pack|mark|ship|deliver|cancel|confirm\s+the|pack\s+the|ship\s+the|cancel\s+the)\s+(?:the\s+)?order\s+(ord[- ]?\d+)\b"
+        r"\b(confirm|pack|mark|ship|deliver|cancel)\s+(?:the\s+)?order\s+(ord[- ]?\d+)\b"
         r"|\border\s+(ord[- ]?\d+)\s+(?:as\s+)?(confirmed|packed|shipped|delivered|cancelled|canceled)\b", low)
     if status_command:
         code = (status_command.group(2) or status_command.group(3)).replace(" ", "").upper()
@@ -107,9 +142,11 @@ def process_command(db: Session, business_id: int, actor_id: int, session_id: st
                          {"order_id": order.id, "status": target}, f"Mark order {code} as {target}")
 
     # Physical count: support both imperative and spoken past-tense forms.
-    count_match = re.search(r"\b(?:count|counted|stock count|ginti)\s+(\d{1,6})\b", low)
+    count_match = re.search(
+        r"\b(?:count|counted|stock count|ginti)\s+(\d{1,6})\b|"
+        r"\b(?:set|adjust)\s+(?:the\s+)?stock\s+(?:of\s+)?(?:\w+\s+){0,4}?(?:to|at)\s+(\d{1,6})\b", low)
     if count_match or ("ginti" in low and re.search(r"\d{1,6}", low)):
-        qty = int(count_match.group(1)) if count_match else int(re.search(r"\d{1,6}", low).group(0))
+        qty = int(next(g for g in count_match.groups() if g)) if count_match else int(re.search(r"\d{1,6}", low).group(0))
         if len(mentioned) != 1 or mentioned[0].kind != "ready_stock":
             raise HTTPException(status_code=422, detail="Say ‘count [quantity] for [ready stock item]’ so I can identify one item")
         item = mentioned[0]
@@ -118,7 +155,7 @@ def process_command(db: Session, business_id: int, actor_id: int, session_id: st
 
     # 2. Restock: a verb, a number and an item.
     qty_match = re.search(r"\b(\d{1,6})\b", low) or re.search(r"\b(do)\b(?=.*\b(?:add|jodo|jod|restock)\b)", low)
-    if re.search(r"\b(restock|add stock|add|received|stock up|jodo|jod do|badhao)\b", low) and qty_match:
+    if re.search(r"\b(restock|add stock|add|received|stock up|increase|raise|jodo|jod do|badhao)\b", low) and qty_match:
         qty = 2 if qty_match.group(1) == "do" else int(qty_match.group(1))
         if len(mentioned) != 1 or mentioned[0].kind != "ready_stock" or qty < 1:
             raise HTTPException(status_code=422, detail="I could not match that ready stock item and quantity")
@@ -127,13 +164,17 @@ def process_command(db: Session, business_id: int, actor_id: int, session_id: st
                          f"Add {qty} to {item.name} (current stock {item.quantity or 0})")
 
     # 3. Voice order: "rahul bought 80 roses, total 1600"
-    if re.search(r"\b(?:bought|ordered|purchased|khareede|ne liye)\b", low):
+    if re.search(r"\b(?:bought|ordered|purchased|khareede|ne liye|place (?:an? )?order|create (?:an? )?order|make (?:an? )?order|new order|order banao)\b", low):
         from ..ai.extractor import parse_voice_order
         parsed = parse_voice_order(text)
         customer = parsed["customer"]
         lines = []
         names = []
-        for draft in parsed["items"]:
+        for item in mentioned:
+            quantity = _item_quantity(low, item)
+            lines.append({"catalog_item_id": item.id, "quantity": quantity})
+            names.append(f"{quantity} × {item.name}")
+        for draft in ([] if mentioned else parsed["items"]):
             name = draft["name"].strip()
             found = voice_text.find_items(name, items)
             item = found[0] if len(found) == 1 else next((i for i in items if i.name.casefold() == name.casefold()), None)
@@ -145,6 +186,8 @@ def process_command(db: Session, business_id: int, actor_id: int, session_id: st
             raise HTTPException(status_code=422, detail="Could not identify order items")
         payload = {"customer": {"name": customer["name"], "phone": customer.get("phone"),
                                 "handle": customer.get("handle")}, "items": lines, "transcript": text[:400]}
+        if not mentioned and lines and lines[0]["catalog_item_id"] and len(items) == 1:
+            lines[0]["quantity"] = _item_quantity(low, items[0])
         return _proposal(db, business_id, actor_id, session_id, "create_order", payload,
                          f"Create order for {customer['name']}: {', '.join(names)}. Prices will come from your catalog.")
 
@@ -154,7 +197,8 @@ def process_command(db: Session, business_id: int, actor_id: int, session_id: st
         low_items.sort(key=lambda i: (i.quantity or 0, i.name))
         summary = "No items are low on stock." if not low_items else "Low stock: " + "; ".join(
             f"{i.name}, {i.quantity or 0} left" for i in low_items)
-        return _read(db, business_id, actor_id, "low stock", summary)
+        return _read(db, business_id, actor_id, "low stock", summary,
+                     items=[{"id": i.id, "name": i.name, "quantity": i.quantity or 0, "kind": i.kind} for i in low_items])
 
     # 5. Today's DMs
     if re.search(r"\b(dms?|messages?|inbox|chats?)\b", low) and re.search(r"\b(read|show|tell|check|any|new|today|todays|aaj)\b", low):
@@ -163,17 +207,31 @@ def process_command(db: Session, business_id: int, actor_id: int, session_id: st
             .order_by(Conversation.last_message_at.desc()).limit(20)).all()
         summary = "No DMs today." if not rows else f"You have {len(rows)} chats updated today. " + "; ".join(
             f"{c.display_name}: {c.last_preview}" for c in rows[:5])
-        return _read(db, business_id, actor_id, "today's DMs", summary)
+        return _read(db, business_id, actor_id, "today's DMs", summary,
+                     items=[{"name": c.display_name, "preview": c.last_preview, "status": c.status} for c in rows[:8]])
+
+    if re.search(r"\b(orders?|sales)\b", low) and re.search(r"\b(read|show|list|check|today|todays|recent|how many|kitne|kitna)\b", low):
+        q = select(Order, Customer).join(Customer, Customer.id == Order.customer_id).where(Order.business_id == business_id).order_by(Order.id.desc()).limit(12)
+        rows = db.execute(q).all()
+        total = sum(o.total_paise for o, _ in rows if o.status != "cancelled")
+        summary = "No orders yet." if not rows else f"{len(rows)} recent orders worth {total / 100:.2f} rupees. " + "; ".join(
+            f"{o.code}, {c.name}, {o.status}, {o.total_paise / 100:.2f} rupees" for o, c in rows[:6])
+        return _read(db, business_id, actor_id, "recent orders", summary,
+                     items=[{"id": o.id, "code": o.code, "customer_name": c.name, "status": o.status,
+                             "total_paise": o.total_paise, "payment_status": o.payment_status} for o, c in rows])
 
     # 6. "How many roses are left?" and the Hinglish forms
     asks_stock = re.search(r"\b(how many|how much|kitne|kitna|kitni|stock|left|bache|bacha|bachi|remaining|available|in stock|do i have|hai kya|inventory)\b", low)
     if asks_stock:
         if mentioned:
-            return _read(db, business_id, actor_id, "stock question", " ".join(_stock_line(db, i) for i in mentioned[:5]))
-        if re.search(r"\b(all|everything|overall|inventory|my stock)\b", low):
-            ready = [i for i in items if i.kind == "ready_stock"][:8]
-            summary = "No ready-stock items yet." if not ready else "Stock: " + "; ".join(f"{i.name} {i.quantity or 0}" for i in ready)
-            return _read(db, business_id, actor_id, "stock overview", summary)
+            return _read(db, business_id, actor_id, "stock question", " ".join(_stock_line(db, i) for i in mentioned[:5]),
+                         items=[{"id": i.id, "name": i.name, "kind": i.kind, "quantity": i.quantity,
+                                 "capacity": i.capacity, "available": order_service.availability(db, i)} for i in mentioned[:5]])
+        if re.search(r"\b(all|everything|overall|inventory|stock|my stock|list|show|read)\b", low):
+            summary = "No catalog items yet." if not items else "Stock: " + "; ".join(_stock_line(db, i) for i in items[:12])
+            return _read(db, business_id, actor_id, "stock overview", summary,
+                         items=[{"id": i.id, "name": i.name, "kind": i.kind, "quantity": i.quantity,
+                                 "capacity": i.capacity, "available": order_service.availability(db, i)} for i in items[:12]])
         names = ", ".join(i.name for i in items[:8]) or "none yet"
         _log(db, business_id, actor_id, "unmatched", raw[:200])
         db.commit()

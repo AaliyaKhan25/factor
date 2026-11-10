@@ -119,7 +119,7 @@ def numberize(text: str) -> str:
                 if re.fullmatch(r"[A-Za-z]+", parts[j]) and _is_num_word(parts[j]):
                     words.append(parts[j].casefold())
                     j += 1
-                elif parts[j] == " " and j + 1 < len(parts) and re.fullmatch(r"[A-Za-z]+", parts[j + 1]) and _is_num_word(parts[j + 1]):
+                elif re.fullmatch(r"[\s-]+", parts[j]) and j + 1 < len(parts) and re.fullmatch(r"[A-Za-z]+", parts[j + 1]) and _is_num_word(parts[j + 1]):
                     j += 1
                 else:
                     break

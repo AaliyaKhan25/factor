@@ -149,7 +149,7 @@ export type Conversation = {
 };
 export type ConversationDetail = Conversation & {
   messages: { id: number; direction: "in" | "out"; sender: "customer" | "agent" | "owner"; text: string; created_at: string }[];
-  orders: { id: number; code: string; status: string; total_paise: number; created_at?: string; tracking?: CourierTracking | null }[];
+  orders: { id: number; code: string; status: string; total_paise: number; created_at?: string; payment?: PaymentInfo; tracking?: CourierTracking | null }[];
 };
 export type InboxCounts = { needs_owner: number; agent: number; resolved: number };
 export type Dashboard = {

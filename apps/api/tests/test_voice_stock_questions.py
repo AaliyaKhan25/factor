@@ -55,4 +55,14 @@ def test_unknown_item_asks_which_one(client):
 
 def test_helpers():
     assert voice_text.numberize("add twenty five to roses") == "add 25 to roses"
+    assert voice_text.numberize("restock twenty-five to roses") == "restock 25 to roses"
     assert voice_text.numberize("restock char") == "restock 4"
+
+
+def test_stock_search_returns_structured_result_for_the_answer_card(client):
+    owner = _setup(client)
+    result = _say(client, owner, "read inventory")
+    assert result["type"] == "read_only"
+    assert result["headline"] == "Here’s what I found"
+    assert result["intent"] == "stock overview"
+    assert {item["name"] for item in result["items"]} == {"Roses", "Bridal Set"}

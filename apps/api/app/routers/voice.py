@@ -4,11 +4,13 @@ import binascii
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..ai import speech
 from ..db import get_db
 from ..deps import Ctx, require_permission
+from ..models.catalog_item import CatalogItem
 from ..services import voice_service
 
 router = APIRouter(prefix="/voice", tags=["voice"])
@@ -67,8 +69,17 @@ async def transcribe_and_command(body: VoiceAudio, ctx: Ctx = Depends(require_pe
         raise HTTPException(status_code=400, detail="Invalid base64 audio data")
     if not audio or len(audio) > 10_000_000:
         raise HTTPException(status_code=413, detail="Audio must be between 1 byte and 10 MB")
+    if not speech.is_gnani_configured():
+        raise HTTPException(status_code=503, detail="Gnani voice is not configured. Set GNANI_API_KEY (or GNANI_TOKEN) in the API environment and restart the API.")
     try:
-        transcript = await speech.transcribe_with_gnani(audio, body.content_type, body.language)
+        key_terms = db.scalars(select(CatalogItem.name).where(
+            CatalogItem.business_id == ctx.business_id, CatalogItem.active.is_(True)
+        ).order_by(CatalogItem.id).limit(200)).all()
+        transcript = await speech.transcribe_with_gnani(audio, body.content_type, body.language, list(key_terms))
+        if not transcript.strip():
+            raise HTTPException(status_code=422, detail="Gnani did not hear a command. Try again, or type it below.")
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Speech recognition failed: {exc}")
     result = await _with_speech(_command(transcript, ctx, db))
