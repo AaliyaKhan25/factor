@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..ai import speech
 from ..db import get_db
-from ..deps import Ctx, require_permission
+from ..deps import Ctx, get_ctx, require_permission
 from ..models.catalog_item import CatalogItem
 from ..services import voice_service
 
@@ -53,6 +53,20 @@ async def _with_speech(result: dict) -> dict:
         except Exception:
             result["speech_available"] = False
     return result
+
+
+class SpeakIn(BaseModel):
+    text: str = Field(min_length=1, max_length=600)
+
+
+@router.post("/speak")
+async def speak(body: SpeakIn, ctx: Ctx = Depends(get_ctx)):
+    """Text to speech for prompts and errors. The browser falls back to its own voice if this fails."""
+    try:
+        audio = await speech.speak_with_gnani(body.text)
+    except Exception:
+        raise HTTPException(status_code=503, detail="Spoken replies are unavailable")
+    return {"audio_base64": base64.b64encode(audio).decode("ascii"), "audio_content_type": "audio/wav"}
 
 
 @router.post("/commands")

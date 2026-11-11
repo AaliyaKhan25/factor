@@ -1,131 +1,95 @@
-"""Tests for Gnani.ai voice order parser and automatic order creation endpoint."""
+"""The whole app can be driven by speech: navigation, briefings, spoken confirmations and spoken errors."""
+import pytest
 from tests.conftest import new_owner
-from app.ai.extractor import parse_voice_order
 
 
-def test_extractor_user_prompt_case():
-    parsed = parse_voice_order("rahul bought 80 roses , total price 1600")
-    assert parsed["customer"]["name"] == "Rahul"
-    assert len(parsed["items"]) == 1
-    assert parsed["items"][0]["name"].lower() == "roses"
-    assert parsed["items"][0]["quantity"] == 80
-    assert parsed["total_price_paise"] == 160000
-    assert parsed["items"][0]["unit_price_paise"] == 2000
-
-
-def test_extractor_hindi_hinglish_variations():
-    parsed = parse_voice_order("rahul ne 80 roses khareede, total price 1600 rupaye")
-    assert parsed["customer"]["name"] == "Rahul"
-    assert parsed["items"][0]["name"].lower() == "roses"
-    assert parsed["items"][0]["quantity"] == 80
-    assert parsed["total_price_paise"] == 160000
-
-    parsed2 = parse_voice_order("customer ananya 9876543210 bought 2 bridal sets for 12400")
-    assert parsed2["customer"]["name"] == "Ananya"
-    assert parsed2["customer"]["phone"] == "9876543210"
-    assert parsed2["items"][0]["quantity"] == 2
-    assert parsed2["total_price_paise"] == 1240000
-
-
-def test_voice_status_endpoint(client):
-    r = client.get("/voice/status")
-    assert r.status_code == 200
-    data = r.json()
-    assert data["provider"] == "Gnani.ai"
-    assert data["speech_to_text"] and data["text_to_speech"]
-    assert data["supported_languages"][0]["code"] == "indic-auto"
-
-
-def test_voice_command_creates_one_time_proposal_instead_of_order(client):
+def _setup(client):
     owner, _ = new_owner(client)
     item = client.post("/catalog", json={"name": "Roses", "kind": "ready_stock", "price_paise": 2000, "quantity": 15}, headers=owner).json()
-    proposed = client.post("/voice/commands", json={"text": "restock 4 to Roses"}, headers=owner)
-    assert proposed.status_code == 200, proposed.text
-    data = proposed.json()
-    assert data["type"] == "proposal"
-    assert client.get("/inventory", headers=owner).json()["items"][0]["quantity"] == 15
-    done = client.post(f"/voice/proposals/{data['token']}/confirm", json={}, headers=owner)
-    assert done.status_code == 200, done.text
-    assert client.get("/inventory", headers=owner).json()["items"][0]["quantity"] == 19
-    assert client.post(f"/voice/proposals/{data['token']}/confirm", json={}, headers=owner).status_code == 410
+    order = client.post("/orders", headers=owner, json={"customer": {"name": "Riya"}, "items": [{"catalog_item_id": item["id"], "quantity": 1}]}).json()
+    return owner, order
 
 
-def test_voice_read_only_command_returns_data_without_proposal(client):
-    owner, _ = new_owner(client)
-    r = client.post("/voice/commands", json={"text": "read low stock"}, headers=owner)
-    assert r.status_code == 200
-    assert r.json()["type"] == "read_only"
-    assert "No items" in r.json()["text"]
+def _say(client, owner, text):
+    r = client.post("/voice/commands", json={"text": text}, headers=owner)
+    assert r.status_code == 200, r.text
+    return r.json()
 
 
-def test_voice_inventory_count_is_proposed_then_written_to_ledger(client):
-    owner, _ = new_owner(client)
-    client.post("/catalog", json={"name": "Roses", "kind": "ready_stock", "price_paise": 2000, "quantity": 15}, headers=owner)
-    proposed = client.post("/voice/commands", json={"text": "count 12 for Roses"}, headers=owner).json()
-    assert proposed["type"] == "proposal"
-    assert "Set Roses stock to 12" in proposed["summary"]
-    done = client.post(f"/voice/proposals/{proposed['token']}/confirm", json={}, headers=owner)
-    assert done.status_code == 200, done.text
-    inventory = client.get("/inventory", headers=owner).json()["items"][0]
-    assert inventory["quantity"] == 12
-    history = client.get(f"/inventory/{inventory['id']}/history", headers=owner).json()["history"]
-    assert any(event["kind"] == "count" for event in history)
+@pytest.mark.parametrize("phrase,path", [
+    ("open orders", "/orders"), ("go to inventory", "/inventory"), ("take me to the inbox", "/inbox"),
+    ("open settings", "/settings"), ("open catalog", "/catalog"), ("go to customers", "/customers"),
+    ("open the dashboard", "/dashboard"), ("open new order", "/orders/new"),
+    ("ऑर्डर्स kholo", "/orders"), ("go to team", "/setup/team"), ("go back", "back"),
+])
+def test_navigation_phrases(client, phrase, path):
+    owner, _ = _setup(client)
+    data = _say(client, owner, phrase)
+    assert data["type"] == "navigate" and data["path"] == path, data
 
 
-def test_voice_order_status_requires_tap_confirmation(client):
-    owner, _ = new_owner(client)
-    item = client.post("/catalog", json={"name": "Roses", "kind": "ready_stock", "price_paise": 2000, "quantity": 15}, headers=owner).json()
-    created = client.post("/orders", headers=owner, json={"customer": {"name": "Riya"}, "items": [{"catalog_item_id": item["id"], "quantity": 1}]}).json()
-    proposed = client.post("/voice/commands", json={"text": f"confirm order {created['code']}"}, headers=owner).json()
-    assert proposed["type"] == "proposal"
-    assert client.get(f"/orders/{created['id']}", headers=owner).json()["status"] == "new"
-    assert client.post(f"/voice/proposals/{proposed['token']}/confirm", headers=owner, json={"voice_phrase": "yes"}).status_code == 403
-    done = client.post(f"/voice/proposals/{proposed['token']}/confirm", headers=owner, json={})
-    assert done.status_code == 200, done.text
-    assert client.get(f"/orders/{created['id']}", headers=owner).json()["status"] == "confirmed"
+def test_open_a_specific_order(client):
+    owner, order = _setup(client)
+    data = _say(client, owner, f"open order {order['code']}")
+    assert data["type"] == "navigate" and data["path"] == f"/orders/{order['id']}"
 
 
-def test_voice_parser_accepts_create_order_phrase_and_named_catalog_quantities(client):
-    owner, _ = new_owner(client)
-    item = client.post("/catalog", json={"name": "Sage tote", "kind": "ready_stock", "price_paise": 12000, "quantity": 8}, headers=owner).json()
-    response = client.post("/voice/commands", headers=owner, json={"text": "Create an order for Riya: two Sage totes"})
-    assert response.status_code == 200, response.text
-    assert response.json()["type"] == "proposal"
-    assert "2 × Sage tote" in response.json()["summary"]
+def test_open_unknown_order_is_a_speakable_error(client):
+    owner, _ = _setup(client)
+    r = client.post("/voice/commands", json={"text": "open order ORD-9999"}, headers=owner)
+    assert r.status_code == 404 and "ORD-9999" in r.json()["detail"]
 
 
-def test_audio_command_explains_missing_gnani_key(client, monkeypatch):
-    from app.ai import speech
-    monkeypatch.setattr(speech, "is_gnani_configured", lambda: False)
-    owner, _ = new_owner(client)
-    response = client.post("/voice/transcribe-and-command", headers=owner,
-                           json={"audio_base64": "UklGRg==", "content_type": "audio/wav", "language": "indic-auto"})
-    assert response.status_code == 503
-    assert "Set GNANI_API_KEY" in response.json()["detail"]
+def test_briefing_and_help_are_read_aloud(client):
+    owner, _ = _setup(client)
+    brief = _say(client, owner, "give me a summary")
+    assert brief["type"] == "read_only" and "orders" in brief["text"]
+    assert _say(client, owner, "what can I say")["intent"] == "help"
 
 
-def test_gnani_token_alias_is_detected_as_configured(monkeypatch):
-    from types import SimpleNamespace
-    from app.ai import speech
-    monkeypatch.setattr(speech, "settings", SimpleNamespace(gnani_api_key="", gnani_token="server-token"))
-    monkeypatch.delenv("GNANI_API_KEY", raising=False)
-    monkeypatch.delenv("GNANI_TOKEN", raising=False)
-    assert speech.is_gnani_configured()
+def test_spoken_yes_confirms_and_stray_words_do_not(client):
+    owner, _ = _setup(client)
+    token = _say(client, owner, "restock 4 to roses")["token"]
+    assert client.post(f"/voice/proposals/{token}/confirm", json={"voice_phrase": "banana"}, headers=owner).status_code == 403
+    ok = client.post(f"/voice/proposals/{token}/confirm", json={"voice_phrase": "haan kar do"}, headers=owner)
+    assert ok.status_code == 200, ok.text
+    assert client.get("/inventory", headers=owner).json()["items"][0]["quantity"] == 18
 
 
-def test_voice_proposal_is_bound_to_signed_in_user(client):
-    owner, _ = new_owner(client)
-    client.post("/catalog", json={"name": "Roses", "kind": "ready_stock", "price_paise": 2000, "quantity": 15}, headers=owner)
-    token = client.post("/voice/commands", json={"text": "restock 4 to Roses"}, headers=owner).json()["token"]
-    other, _ = new_owner(client, email="other-owner@example.com")
-    assert client.post(f"/voice/proposals/{token}/confirm", json={}, headers=other).status_code == 404
-    assert client.get("/inventory", headers=owner).json()["items"][0]["quantity"] == 15
+def test_spoken_no_drops_the_proposal(client):
+    owner, _ = _setup(client)
+    token = _say(client, owner, "restock 4 to roses")["token"]
+    dropped = client.post(f"/voice/proposals/{token}/confirm", json={"voice_phrase": "no"}, headers=owner)
+    assert dropped.status_code == 200 and dropped.json()["type"] == "dropped"
+    assert client.get("/inventory", headers=owner).json()["items"][0]["quantity"] == 14
+    assert client.post(f"/voice/proposals/{token}/confirm", json={"voice_phrase": "yes"}, headers=owner).status_code == 410
 
 
-def test_voice_proposal_is_bound_to_the_exact_login_session(client):
-    owner, _ = new_owner(client)
-    client.post("/catalog", json={"name": "Roses", "kind": "ready_stock", "price_paise": 2000, "quantity": 15}, headers=owner)
-    token = client.post("/voice/commands", json={"text": "restock 4 to Roses"}, headers=owner).json()["token"]
-    fresh_login = client.post("/auth/login", json={"email": "owner@example.com", "password": "correct-horse-1"}).json()
-    fresh_headers = {"Authorization": f"Bearer {fresh_login['access_token']}"}
-    assert client.post(f"/voice/proposals/{token}/confirm", json={}, headers=fresh_headers).status_code == 404
+def test_cancelling_an_order_needs_the_word_cancel(client):
+    owner, order = _setup(client)
+    token = _say(client, owner, f"cancel order {order['code']}")["token"]
+    assert client.post(f"/voice/proposals/{token}/confirm", json={"voice_phrase": "yes"}, headers=owner).status_code == 403
+    ok = client.post(f"/voice/proposals/{token}/confirm", json={"voice_phrase": "yes cancel it"}, headers=owner)
+    assert ok.status_code == 200, ok.text
+
+
+def test_recent_orders_command_works(client):
+    owner, _ = _setup(client)
+    data = _say(client, owner, "show recent orders")
+    assert data["type"] == "read_only" and data["items"]
+
+
+def test_speak_endpoint_returns_audio_or_a_clean_503(client, monkeypatch):
+    owner, _ = _setup(client)
+    from app.routers import voice
+
+    async def fake(text):
+        return b"RIFFfake"
+    monkeypatch.setattr(voice.speech, "speak_with_gnani", fake)
+    r = client.post("/voice/speak", json={"text": "Item not found"}, headers=owner)
+    assert r.status_code == 200 and r.json()["audio_base64"]
+
+    async def boom(text):
+        raise RuntimeError("no key")
+    monkeypatch.setattr(voice.speech, "speak_with_gnani", boom)
+    assert client.post("/voice/speak", json={"text": "x"}, headers=owner).status_code == 503

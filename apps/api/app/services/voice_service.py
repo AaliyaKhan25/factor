@@ -12,6 +12,7 @@ from ..ai import voice_text
 from ..models.activity_log import ActivityLog
 from ..models.catalog_item import CatalogItem
 from ..models.conversation import Conversation
+from ..models.customer import Customer
 from ..models.message import Message
 from ..models.order import Order
 from ..models.stock_log import StockLog
@@ -35,12 +36,12 @@ def _proposal(db: Session, business_id: int, actor_id: int, session_id: str, act
     _log(db, business_id, actor_id, "propose", summary)
     db.commit()
     return {"type": "proposal", "token": token, "action": action, "summary": summary,
-            "expires_at": row.expires_at, "voice_confirmation_allowed": action == "send_reply"}
+            "expires_at": row.expires_at, "voice_confirmation_allowed": True}
 
 
-HELP_TEXT = ("Try: ‘how many [item] are left’, ‘read low stock’, ‘read today’s DMs’, "
-             "‘read inventory’, ‘show recent orders’, ‘restock 4 to [item]’, ‘count 12 for [item]’, ‘confirm order ORD-1001’, "
-             "or ‘Rahul ordered 2 [item]’.")
+HELP_TEXT = ("You can say: give me a summary. Open orders, inventory, inbox or settings. How many roses are left. "
+             "Read low stock. Read today's messages. Restock 4 to roses. Confirm order ORD-1001. "
+             "Rahul ordered 2 roses. Reply to chat 3 saying thank you. After I read a change back, say yes to confirm or no to drop it.")
 
 
 def _active_items(db: Session, business_id: int) -> list[CatalogItem]:
@@ -74,6 +75,47 @@ def _item_quantity(text: str, item: CatalogItem) -> int:
     return int(match.group(1)) if match else 1
 
 
+
+# Where "go to ..." can take the owner. Longer phrases first.
+PAGES: list[tuple[str, str, str]] = [
+    (r"new order|create order|add order", "/orders/new", "new order"),
+    (r"dashboard|daishabord|overview|home|dashbord", "/dashboard", "the overview"),
+    (r"inbox|inaboks|messages?|dms?|chats?|sandesh", "/inbox", "the inbox"),
+    (r"orders?|ordars?|ordar", "/orders", "orders"),
+    (r"catalog|catalogue|kaitalog|products?|items?", "/catalog", "the catalog"),
+    (r"inventory|inventri|inventry|stock|stok", "/inventory", "inventory"),
+    (r"customers?|kastamars?|kastamar", "/customers", "customers"),
+    (r"team|staff|members?", "/setup/team", "the team page"),
+    (r"settings?|setings?|sheets?|courier", "/settings", "settings"),
+    (r"reports?", "/reports", "reports"),
+    (r"payments?", "/payments", "payments"),
+    (r"notifications?", "/notifications", "notifications"),
+    (r"activity|history", "/activity", "the activity log"),
+]
+NAV_VERB = r"\b(go to|go|open|take me to|take me|navigate to|navigate|switch to|jao|kholo|khol do|dikhao)\b"
+
+
+def _navigate(db: Session, business_id: int, actor_id: int, path: str, text: str) -> dict:
+    _log(db, business_id, actor_id, "navigate", path)
+    db.commit()
+    return {"type": "navigate", "path": path, "text": text}
+
+
+def _briefing(db: Session, business_id: int) -> str:
+    start = utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today = db.scalars(select(Order).where(Order.business_id == business_id, Order.created_at >= start)).all()
+    live = [o for o in today if o.status != "cancelled"]
+    pending = db.scalar(select(func.count(Order.id)).where(Order.business_id == business_id, Order.status == "new")) or 0
+    waiting = db.scalar(select(func.count(Conversation.id)).where(Conversation.business_id == business_id,
+                                                                  Conversation.status == "needs_owner")) or 0
+    low = [i for i in _active_items(db, business_id)
+           if i.kind == "ready_stock" and (i.quantity or 0) <= inventory_service.LOW_STOCK_AT]
+    parts = [f"Today: {len(live)} orders worth {sum(o.total_paise for o in live) / 100:.0f} rupees.",
+             f"{pending} new orders to confirm.", f"{waiting} chats need you."]
+    parts.append("Low stock: " + ", ".join(f"{i.name} {i.quantity or 0}" for i in low[:5]) + "." if low else "Stock looks fine.")
+    return " ".join(parts)
+
+
 def process_command(db: Session, business_id: int, actor_id: int, session_id: str, command: str) -> dict:
     raw = " ".join(command.strip().split())
     if not raw:
@@ -83,6 +125,34 @@ def process_command(db: Session, business_id: int, actor_id: int, session_id: st
     low = text.casefold()
     items = _active_items(db, business_id)
     mentioned = voice_text.find_items(low, items)
+
+
+    # 0. Help, briefing and screen navigation. Voice must be able to reach every screen.
+    if re.search(r"\b(help|what can i say|what can you do|commands)\b", low):
+        _log(db, business_id, actor_id, "help", "")
+        db.commit()
+        return {"type": "read_only", "headline": "What you can say", "intent": "help", "text": HELP_TEXT}
+    if re.search(r"\b(briefing|summary|what needs (?:my )?attention|how is (?:my )?business|business today|aaj ka hisab|daily summary)\b", low):
+        return _read(db, business_id, actor_id, "briefing", _briefing(db, business_id))
+    chat_nav = re.search(NAV_VERB + r"\s+(?:the\s+)?(?:chat|conversation)\s+(\d+)\b", low)
+    if chat_nav:
+        conv = db.get(Conversation, int(chat_nav.group(2)))
+        if conv is None or conv.business_id != business_id:
+            raise HTTPException(status_code=404, detail=f"I could not find chat {chat_nav.group(2)}")
+        return _navigate(db, business_id, actor_id, f"/inbox/{conv.id}", f"Opening chat with {conv.display_name}.")
+    order_nav = re.search(NAV_VERB + r"\s+(?:the\s+)?order\s+(ord[- ]?\d+)\b", low)
+    if order_nav:
+        code = "ORD-" + re.sub(r"^ORD-?", "", re.sub(r"\s+", "", order_nav.group(2)).upper())
+        order = db.scalar(select(Order).where(Order.business_id == business_id, Order.code == code))
+        if order is None:
+            raise HTTPException(status_code=404, detail=f"I could not find order {code}")
+        return _navigate(db, business_id, actor_id, f"/orders/{order.id}", f"Opening {order.code}.")
+    if re.search(NAV_VERB, low) and not re.search(r"\b(ord[- ]?\d+|chat \d+)\b", low):
+        for pattern, path, label in PAGES:
+            if re.search(rf"\b(?:{pattern})\b", low):
+                return _navigate(db, business_id, actor_id, path, f"Opening {label}.")
+    if re.search(r"\b(go back|back)\b", low):
+        return {"type": "navigate", "path": "back", "text": "Going back."}
 
     # 1. Reply: the message itself is taken from the original words, never rewritten.
     match = re.search(r"\b(?:reply|send reply)\s+(?:to\s+)?(?:chat\s+)?(\w+)\s+(?:saying|with)\s+(.+)$", raw, re.I)
@@ -106,7 +176,6 @@ def process_command(db: Session, business_id: int, actor_id: int, session_id: st
         order = db.scalar(select(Order).where(Order.business_id == business_id, Order.code == code))
         if order is None:
             raise HTTPException(status_code=404, detail=f"I could not find {code}")
-        from ..models.customer import Customer
         customer = db.get(Customer, order.customer_id)
         summary = f"{order.code} for {customer.name if customer else 'customer'} is {order.status}; total {order.total_paise / 100:.2f} rupees, payment {order.payment_status}."
         return _read(db, business_id, actor_id, "order lookup", summary,
@@ -242,6 +311,11 @@ def process_command(db: Session, business_id: int, actor_id: int, session_id: st
     return {"type": "needs_clarification", "text": HELP_TEXT}
 
 
+YES_WORDS = {"yes", "yeah", "yep", "yas", "confirm", "confirmed", "ok", "okay", "sure", "send", "proceed",
+             "haan", "han", "ha", "haa", "kar", "karo", "bhej", "theek", "sahi", "done"}
+NO_WORDS = {"no", "nope", "nahi", "nahin", "na", "stop", "dont", "don", "wrong", "galat", "mat"}
+
+
 def confirm_proposal(db: Session, business_id: int, actor_id: int, session_id: str, token: str,
                      *, voice_phrase: str | None = None) -> dict:
     digest = hashlib.sha256(token.encode()).hexdigest()
@@ -255,8 +329,18 @@ def confirm_proposal(db: Session, business_id: int, actor_id: int, session_id: s
         db.commit()
         raise HTTPException(status_code=410, detail="This proposal has expired")
     if voice_phrase is not None:
-        if row.action != "send_reply" or voice_phrase.casefold().strip() not in {"yes", "send", "haan", "ha", "bhej do"}:
-            raise HTTPException(status_code=403, detail="This action needs tap confirmation")
+        words = set(re.findall(r"[a-z]+", voice_text.to_latin(voice_phrase).casefold()))
+        yes = words & YES_WORDS
+        if words & NO_WORDS and not (row.action == "order_status" and "cancel" in words and yes):
+            row.consumed_at = utcnow()
+            _log(db, business_id, actor_id, "drop", row.summary)
+            db.commit()
+            return {"type": "dropped", "text": "Okay, I dropped that. Nothing was changed."}
+        if not yes:
+            raise HTTPException(status_code=403, detail="I did not hear a clear yes, so nothing was changed")
+        # Cancelling an order is the one action that needs the extra word, so a stray "yes" cannot trigger it.
+        if row.action == "order_status" and row.payload.get("status") == "cancelled" and "cancel" not in words:
+            raise HTTPException(status_code=403, detail="To cancel an order, say yes cancel")
     if row.action == "restock":
         item = db.get(CatalogItem, row.payload["item_id"])
         if item is None or item.business_id != business_id:

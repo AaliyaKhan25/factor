@@ -1,6 +1,7 @@
 import "./globals.css";
 import "./inventory.css";
 import { AuthProvider } from "@/lib/auth";
+import VoiceErrors from "@/components/voice/VoiceErrors";
 
 export const metadata = {
   title: "Factor",
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="font-sans">
         <AuthProvider>{children}</AuthProvider>
+        <VoiceErrors />
       </body>
     </html>
   );

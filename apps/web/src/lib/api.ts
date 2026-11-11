@@ -33,7 +33,13 @@ function messageFrom(detail: unknown): string {
   return "Something went wrong";
 }
 
-type Options = { method?: string; body?: unknown; auth?: boolean };
+type Options = { method?: string; body?: unknown; auth?: boolean; silent?: boolean };
+
+// Every API failure is announced on the window so the voice layer can read it aloud.
+function announce(path: string, status: number, message: string, silent?: boolean) {
+  if (silent || status === 401 || path.startsWith("/voice/") || typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent("factor:error", { detail: { message, status } }));
+}
 
 export async function api<T>(path: string, opts: Options = {}): Promise<T> {
   const headers: Record<string, string> = {};
@@ -50,10 +56,15 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
     });
   } catch {
+    announce(path, 0, "I cannot reach the server. Check that the app is running and your internet is on.", opts.silent);
     throw new ApiError(0, "Cannot reach the server. Is the API running?");
   }
   const data = await res.json().catch(() => null);
-  if (!res.ok) throw new ApiError(res.status, messageFrom(data?.detail));
+  if (!res.ok) {
+    const message = messageFrom(data?.detail);
+    announce(path, res.status, message, opts.silent);
+    throw new ApiError(res.status, message);
+  }
   return data as T;
 }
 
