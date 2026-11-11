@@ -33,7 +33,7 @@
 
 | | |
 |---|---|
-| **What** | A free, voice-first operations app for solo Instagram and WhatsApp sellers in India. { Impacts nearly 70% of the global economy from the same DM frustrations all the time }  |
+| **What** | A free, voice-first operations app for solo Instagram and WhatsApp sellers in India. { Impacts nearly 70% of the global economy by saving them from the "same DM" frustrations all the time }  |
 | **Who it is for** | One-person businesses that take orders by DM and run on notebooks and memory. |
 | **The big idea** | Run the whole business by talking to it, in Hindi, English or Hinglish, with spoken confirmation and spoken errors. |
 | **Built for** | The Gnani.ai Great Indian AI Internship Challenge. |
