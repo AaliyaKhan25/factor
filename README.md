@@ -12,7 +12,6 @@
   <img alt="Next.js" src="https://img.shields.io/badge/Next.js%2014-1c2415?style=flat-square&logo=nextdotjs&logoColor=c5f26a">
   <img alt="Tailwind" src="https://img.shields.io/badge/Tailwind-1c2415?style=flat-square&logo=tailwindcss&logoColor=c5f26a">
   <img alt="PWA" src="https://img.shields.io/badge/Installable%20PWA-1c2415?style=flat-square&logoColor=c5f26a">
-  <img alt="BharatCode" src="https://img.shields.io/badge/Gnani-AI Internship-Challenge-3d5a0f?style=flat-square">
 </p>
 
 <p align="center">
