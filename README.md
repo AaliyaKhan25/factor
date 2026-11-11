@@ -33,7 +33,7 @@
 
 | | |
 |---|---|
-| **What** | A free, voice-first operations app for solo Instagram and WhatsApp sellers in India. |
+| **What** | A free, voice-first operations app for solo Instagram and WhatsApp sellers in India. { Impacts nearly 70% of the global economy from the same DM frustrations all the time }  |
 | **Who it is for** | One-person businesses that take orders by DM and run on notebooks and memory. |
 | **The big idea** | Run the whole business by talking to it, in Hindi, English or Hinglish, with spoken confirmation and spoken errors. |
 | **Built for** | The Gnani.ai Great Indian AI Internship Challenge. |
@@ -98,7 +98,6 @@ Voice is not a feature added on top. It is the main way to use the app, built on
 | "Confirm order ORD-1001" · "mark ORD-1001 shipped" | Proposes the status change. Cancelling needs the extra words "yes cancel". |
 | "Take payment from Riya" · "Riya se payment lo" | Finds Riya's unpaid order and sends the UPI payment QR. |
 | "Reply to chat 3 saying thank you" | Reads the reply back, saves it to the chat after **yes**. |
-| "What can I say?" | Lists the commands. |
 
 ### Built for how people really speak
 
