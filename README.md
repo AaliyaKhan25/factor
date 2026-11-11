@@ -527,6 +527,22 @@ Send replies and payment QRs through Meta once approved · one-click "Connect Go
 
 <p align="center"><img src="docs/assets/divider.svg" width="100%" alt=""></p>
 
+## 🏆 Prize categories we are entering
+
+Factor is entered in seven categories of the Gnani.ai Great Indian AI Internship Challenge. For each one, here is why we think it fits.
+
+| Award | Why Factor fits |
+|---|---|
+| **Two-Person Army Award** | The whole project, backend, frontend, voice pipeline, tests and docs, was built by two people: **Aaliya Khan** and **Devansh Paliwal**. That is 61 endpoints, 19 tables and 141 automated tests from a squad of two. |
+| **Small Town Big Build Award** | Both of us are from **Indore, Madhya Pradesh**, a tier-2 city, and study at **SGSITS Indore**, a tier-3 college. Factor was built far from the usual startup hubs, for sellers in the same kind of towns. |
+| **Jugaad Genius Award** | We used Gnani's speech models as the control layer for a whole business, not as a call-centre bot. Gnani's output is paired with our own transliteration and rule-based parser so Hindi-script transcripts of English words still become safe commands. Instagram and WhatsApp DMs arrive through signed Meta webhooks into one inbox, and the same voice commands run it all. |
+| **Crowd Favorite Award** | We are sharing Factor publicly on LinkedIn so sellers, builders and the community can see it and back it. |
+| **Noise Canceller Award** | Factor is made for packing tables and busy shops, not quiet rooms. Recording stops on silence, and background noise is filtered so the seller's voice, not the surroundings, is what turns into commands. |
+| **The Real Deal Award** | Small and medium sellers run their business from DMs, notebooks and memory. Factor gives them orders, stock, UPI payments, courier tracking and a team inbox in one free app, controlled by voice. |
+| **Mixed Vibes Award** | Sellers do not speak in one clean language. Factor handles English, Hindi and Hinglish in the same sentence, with no language picker, and fixes the real failure we hit: English words coming back in Devanagari until we switched Gnani to transliterated output. |
+
+<p align="center"><img src="docs/assets/divider.svg" width="100%" alt=""></p>
+
 <p align="center">
   <b>factor.</b> because the person running the business should not have to stop packing to type.<br>
   Built for the <b>Gnani.ai Great Indian AI Internship Challenge</b> by <b>Aaliya Khan</b> (SGSITS Indore) and team.
