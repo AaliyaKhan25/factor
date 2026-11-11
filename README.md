@@ -32,7 +32,8 @@ Across India, millions of small sellers live inside Instagram and WhatsApp DMs. 
 
 We’ve wanted to build voice-first workflow management for them from the start. Gnani.ai is what made it possible, and this hackathon gave us the push to build it. It’s not a weekend experiment. We’re launching it live, and Gnani.ai is coming with us to production.
 
-Existing tools are built for typing, in English, at a desk. The seller is standing at a packing table. Factor is your personal assistant. It follows your instructions, manages your customers on your behalf, and works around the clock without ever asking for a break, a salary, or a day off.
+Existing tools are built for typing, in English, at a desk. The seller is standing at a packing table. 
+BUT Factor is your personal assistant. It follows your instructions, manages your customers on your behalf, and works around the clock without ever asking for a break, a salary, or a day off.
 
 > **Factor turns DMs into orders, and lets the owner run everything with their voice.**
 > Tap the mic. Speak. Factor does it, reads it back, and waits for a spoken **yes**.
