@@ -183,7 +183,7 @@ Factor is a **modular monolith**: one FastAPI service with strict layers, one da
 ### System view
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#eef9d3','primaryTextColor':'#1c2415','primaryBorderColor':'#3d5a0f','lineColor':'#3d5a0f','secondaryColor':'#f7f5ee','tertiaryColor':'#ffffff','fontFamily':'Inter, Segoe UI, sans-serif'}}}%%
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#eef9d3','primaryTextColor':'#1c2415','primaryBorderColor':'#3d5a0f','secondaryColor':'#f7f5ee','tertiaryColor':'#ffffff','lineColor':'#7aa62a','textColor':'#1c2415','nodeTextColor':'#1c2415','edgeLabelBackground':'#f7f5ee','clusterBkg':'#f7f5ee','clusterBorder':'#3d5a0f','titleColor':'#1c2415','fontFamily':'Inter, Segoe UI, sans-serif'}}}%%
 flowchart TB
   subgraph Clients["Clients"]
     PWA["Next.js 14 PWA<br/>mic · spoken replies · live polling"]
@@ -233,7 +233,7 @@ flowchart TB
 ### A voice command, end to end
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#eef9d3','primaryTextColor':'#1c2415','primaryBorderColor':'#3d5a0f','lineColor':'#3d5a0f','actorBkg':'#1c2415','actorTextColor':'#c5f26a','actorBorder':'#1c2415','labelTextColor':'#1c2415','loopTextColor':'#1c2415','signalColor':'#3d5a0f','signalTextColor':'#1c2415','noteBkgColor':'#eef9d3','noteTextColor':'#1c2415','fontFamily':'Inter, Segoe UI, sans-serif'}}}%%
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#eef9d3','primaryTextColor':'#1c2415','primaryBorderColor':'#3d5a0f','lineColor':'#7a9a35','actorBkg':'#1c2415','actorTextColor':'#c5f26a','actorBorder':'#1c2415','actorLineColor':'#7a9a35','labelBoxBkgColor':'#eef9d3','labelBoxBorderColor':'#3d5a0f','labelTextColor':'#1c2415','loopTextColor':'#7a9a35','signalColor':'#7a9a35','signalTextColor':'#7a9a35','textColor':'#7a9a35','sequenceNumberColor':'#ffffff','noteBkgColor':'#eef9d3','noteTextColor':'#1c2415','noteBorderColor':'#3d5a0f','fontFamily':'Inter, Segoe UI, sans-serif'}}}%%
 sequenceDiagram
   autonumber
   participant Owner
@@ -274,7 +274,7 @@ sequenceDiagram
 ### Inbound webhooks
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#eef9d3','primaryTextColor':'#1c2415','primaryBorderColor':'#3d5a0f','lineColor':'#3d5a0f','fontFamily':'Inter, Segoe UI, sans-serif'}}}%%
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#eef9d3','primaryTextColor':'#1c2415','primaryBorderColor':'#3d5a0f','secondaryColor':'#f7f5ee','tertiaryColor':'#ffffff','lineColor':'#7aa62a','textColor':'#1c2415','nodeTextColor':'#1c2415','edgeLabelBackground':'#f7f5ee','clusterBkg':'#f7f5ee','clusterBorder':'#3d5a0f','titleColor':'#1c2415','fontFamily':'Inter, Segoe UI, sans-serif'}}}%%
 flowchart LR
   M["Meta POST<br/>Instagram / WhatsApp"] --> V1{"Signature valid?<br/>X-Hub-Signature-256"}
   V1 -- no --> X1["403, nothing saved"]
@@ -298,7 +298,7 @@ flowchart LR
 19 tables in five areas. Every business-owned row carries `business_id`, and every query is filtered by it.
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#eef9d3','primaryTextColor':'#1c2415','primaryBorderColor':'#3d5a0f','lineColor':'#3d5a0f','fontFamily':'Inter, Segoe UI, sans-serif'}}}%%
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#eef9d3','primaryTextColor':'#1c2415','primaryBorderColor':'#3d5a0f','secondaryColor':'#f7f5ee','tertiaryColor':'#ffffff','lineColor':'#7aa62a','textColor':'#1c2415','nodeTextColor':'#1c2415','edgeLabelBackground':'#f7f5ee','attributeBackgroundColorOdd':'#f7f5ee','attributeBackgroundColorEven':'#eef9d3','fontFamily':'Inter, Segoe UI, sans-serif'}}}%%
 erDiagram
   USERS ||--o{ MEMBERSHIPS : has
   BUSINESSES ||--o{ MEMBERSHIPS : has
