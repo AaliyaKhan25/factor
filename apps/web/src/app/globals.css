@@ -70,3 +70,50 @@
   background-size: 1rem 1rem;
   animation: progress-stripes 1.5s linear infinite;
 }
+
+.voice-wave {
+  display: flex;
+  width: 27px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+
+.voice-wave-bar {
+  display: block;
+  width: 2px;
+  min-height: 4px;
+  border-radius: 999px;
+  background: currentColor;
+  transform-origin: center;
+}
+
+.voice-wave-idle .voice-wave-bar {
+  animation: voice-wave-idle 1.3s ease-in-out infinite alternate;
+}
+
+.voice-wave-moving .voice-wave-bar {
+  animation: voice-wave-active 0.48s ease-in-out infinite alternate;
+}
+
+.voice-wave-listening .voice-wave-bar {
+  animation: none;
+}
+
+@keyframes voice-wave-idle {
+  from { transform: scaleY(0.72); opacity: 0.72; }
+  to { transform: scaleY(1); opacity: 1; }
+}
+
+@keyframes voice-wave-active {
+  from { transform: scaleY(0.55); opacity: 0.72; }
+  to { transform: scaleY(1.08); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-wave-idle .voice-wave-bar,
+  .voice-wave-moving .voice-wave-bar {
+    animation: none;
+  }
+}
