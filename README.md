@@ -27,13 +27,13 @@
 
 <p align="center"><img src="docs/assets/divider.svg" width="100%" alt=""></p>
 
-## 🧡 The problem
+## The Problem
 
 Across India, millions of small sellers live inside Instagram and WhatsApp DMs. One person replies to every message, jots orders in a notebook, chases payments, packs parcels, and answers “Where is my order?” all day, usually one-handed, usually in Hindi or Hinglish.
 
 We’ve wanted to build voice-first workflow management for them from the start. Gnani.ai is what made it possible, and this hackathon gave us the push to build it. It’s not a weekend experiment. We’re launching it live, and Gnani.ai is coming with us to production.
 
-Existing tools are built for typing, in English, at a desk. The seller is standing at a packing table. Factor is your personal **Intern**, who will follow your instructions, manage the customers without asking anything in return AND the best part is, it never gets tired and never asks for leave.
+Existing tools are built for typing, in English, at a desk. The seller is standing at a packing table. Factor is your personal assistant. It follows your instructions, manages your customers on your behalf, and works around the clock without ever asking for a break, a salary, or a day off.
 
 > **Factor turns DMs into orders, and lets the owner run everything with their voice.**
 > Tap the mic. Speak. Factor does it, reads it back, and waits for a spoken **yes**.
@@ -57,7 +57,7 @@ Voice is not a feature added on top. It is the main way to use the app, built on
 
 ### What you can say
 
-| 🗣️ Say this | ✅ What happens |
+| Say this | ✅ What happens |
 |---|---|
 | "Open orders" · "go to inventory" · "take me to the inbox" · "kholo settings" | Navigates there. Works for every main screen, plus "open order ORD-1001" and "open chat 3". |
 | "Give me a summary" | Spoken briefing: today's orders and revenue, new orders to confirm, chats waiting, low stock. |
@@ -73,11 +73,11 @@ Voice is not a feature added on top. It is the main way to use the app, built on
 ### Built for how people really speak
 
 - 🇮🇳 **Hindi script, Hinglish and English** all work. Devanagari transcripts are transliterated to Latin before parsing.
-- 🔢 **Number words** become digits: "four", "char", "twenty five", "bees".
-- 🔍 **Fuzzy item matching** tolerates plurals and spelling slips: "rose" finds *Roses*, "रोजेस" finds *Roses*.
-- 🛟 **Tolerant of recognition mistakes**, like "saying" heard as "Singh" in a reply command.
-- 🔁 **Hands-free loop**: tap once and keep talking. The mic reopens after each answer and closes when you go quiet.
-- 🚨 **Errors are spoken everywhere**, even on the login screen. If Gnani speech is unavailable, the browser's own voice takes over.
+- **Number words** become digits: "four", "char", "twenty five", "bees".
+- **Fuzzy item matching** tolerates plurals and spelling slips: "rose" finds *Roses*, "रोजेस" finds *Roses*.
+- **Tolerant of recognition mistakes**, like "saying" heard as "Singh" in a reply command.
+- **Hands-free loop**: tap once and keep talking. The mic reopens after each answer and closes when you go quiet.
+- **Errors are spoken everywhere**, even on the login screen. If Gnani speech is unavailable, the browser's own voice takes over.
 
 ### 🛡️ Voice safety
 
@@ -93,7 +93,7 @@ Only the server holds the Gnani API key. The browser never sees it.
 
 <p align="center"><img src="docs/assets/divider.svg" width="100%" alt=""></p>
 
-## 🧰 Everything else in Factor
+## Everything else in Factor
 
 <p align="center"><img src="docs/assets/features.svg" width="100%" alt="Voice control, smart inbox, orders and catalog, UPI payments, courier tracking, inventory ledger, Google Sheets, team and access"></p>
 
@@ -147,7 +147,7 @@ One-way snapshots of Orders, Inventory and Stock log to a Google Sheet, for owne
 
 <p align="center"><img src="docs/assets/divider.svg" width="100%" alt=""></p>
 
-## 🏗️ Architecture
+## Architecture
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#eef9d3','primaryTextColor':'#1c2415','primaryBorderColor':'#3d5a0f','lineColor':'#3d5a0f','secondaryColor':'#f7f5ee','tertiaryColor':'#ffffff','fontFamily':'Inter, Segoe UI, sans-serif'}}}%%
@@ -200,7 +200,7 @@ npm run dev
 Open <http://localhost:3000>. API docs are at <http://localhost:8000/docs>.
 
 <details>
-<summary><b>🔐 Environment variables (<code>apps/api/.env</code>)</b></summary>
+<summary><b> Environment variables (<code>apps/api/.env</code>)</b></summary>
 
 | Variable | Purpose |
 |---|---|
@@ -215,7 +215,7 @@ Open <http://localhost:3000>. API docs are at <http://localhost:8000/docs>.
 
 </details>
 
-> 🎤 Voice recording needs `localhost` or HTTPS, and microphone permission in the browser.
+>  Voice recording needs `localhost` or HTTPS, and microphone permission in the browser.
 
 ### ⚡ Try voice in 60 seconds
 
@@ -237,7 +237,7 @@ python demo_webhooks.py --email you@example.com --password yourpass   # signed c
 
 Open the Inbox and an order page beside the terminal and watch them update live. Add `--api https://your-api-url` to run them against a deployed app.
 
-## 🔒 Security
+## Security
 
 - The Gnani key, JWT secret and courier encryption key live only in the server's environment.
 - Voice actions are proposals: single-use, 2-minute expiry, bound to the user and login session, and logged.
@@ -245,7 +245,7 @@ Open the Inbox and an order page beside the terminal and watch them update live.
 - Meta webhooks are signature-checked. Courier webhooks use timestamped HMAC signatures and reject replays.
 - Courier credentials are encrypted at rest. Every query is scoped to the signed-in business.
 
-## 🤝 Honest limits
+## Honest limits
 
 We would rather you hear these from us:
 
@@ -254,7 +254,7 @@ We would rather you hear these from us:
 - The voice grammar covers orders, stock, payments, navigation and replies. It does not yet cover team permissions, creating catalog items, or voice login.
 - Voice understanding is rule-based by design, for safety. Unusual phrasings get a short spoken hint, never a guess.
 
-## 🗺️ Roadmap
+## Roadmap
 
 Send replies and payment QRs through Meta once approved · one-click "Connect Google Sheets" · voice for catalog and team management · more Indian languages in the command grammar · spoken replies in the seller's own language · a weekly business summary read aloud.
 
