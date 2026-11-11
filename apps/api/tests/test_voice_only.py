@@ -93,3 +93,42 @@ def test_speak_endpoint_returns_audio_or_a_clean_503(client, monkeypatch):
         raise RuntimeError("no key")
     monkeypatch.setattr(voice.speech, "speak_with_gnani", boom)
     assert client.post("/voice/speak", json={"text": "x"}, headers=owner).status_code == 503
+
+
+@pytest.mark.parametrize("phrase", [
+    "reply to chat 1 saying thank you",
+    "Yes, reply to chat to three. Singh, thank you.".replace("three", "1"),
+    "reply to chat one thank you",
+    "reply to 1 with thank you",
+])
+def test_reply_command_survives_speech_errors(client, phrase):
+    owner, _ = _setup(client)
+    client.post("/inbox/simulate", json={"channel": "instagram", "handle": "@riya", "name": "Riya", "text": "Hi"}, headers=owner)
+    data = _say(client, owner, phrase)
+    assert data["type"] == "proposal" and data["action"] == "send_reply", data
+    assert data["summary"].endswith("thank you") or data["summary"].endswith("thank you."), data["summary"]
+
+
+def test_unknown_phrase_gets_a_short_spoken_hint(client):
+    owner, _ = _setup(client)
+    data = _say(client, owner, "blah blah")
+    assert data["type"] == "needs_clarification" and len(data["text"]) < 140
+
+
+@pytest.mark.parametrize("phrase", ["take payment from riya", "collect payment from Riya", "send riya the payment QR", "riya se payment lo"])
+def test_take_payment_sends_the_qr(client, phrase):
+    owner, order = _setup(client)
+    client.patch("/business", json={"upi_id": "shop@upi"}, headers=owner)
+    client.post("/inbox/simulate", json={"channel": "instagram", "handle": "@riya", "name": "Riya", "text": "Hi"}, headers=owner)
+    data = _say(client, owner, phrase)
+    assert data["type"] == "proposal" and data["action"] == "request_payment", data
+    assert order["code"] in data["summary"] and "Riya" in data["summary"]
+    done = client.post(f"/voice/proposals/{data['token']}/confirm", json={"voice_phrase": "yes"}, headers=owner)
+    assert done.status_code == 200, done.text
+    assert order["code"] in done.json()["text"]
+
+
+def test_take_payment_errors_are_clear(client):
+    owner, order = _setup(client)
+    r = client.post("/voice/commands", json={"text": "take payment from nobody"}, headers=owner)
+    assert r.status_code == 404 and "could not find" in r.json()["detail"]

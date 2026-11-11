@@ -40,7 +40,7 @@ def _proposal(db: Session, business_id: int, actor_id: int, session_id: str, act
 
 
 HELP_TEXT = ("You can say: give me a summary. Open orders, inventory, inbox or settings. How many roses are left. "
-             "Read low stock. Read today's messages. Restock 4 to roses. Confirm order ORD-1001. "
+             "Read low stock. Read today's messages. Take payment from Riya. Restock 4 to roses. Confirm order ORD-1001. "
              "Rahul ordered 2 roses. Reply to chat 3 saying thank you. After I read a change back, say yes to confirm or no to drop it.")
 
 
@@ -154,11 +154,42 @@ def process_command(db: Session, business_id: int, actor_id: int, session_id: st
     if re.search(r"\b(go back|back)\b", low):
         return {"type": "navigate", "path": "back", "text": "Going back."}
 
+
+    # Take payment: "take payment from Riya", "send Riya the QR", "riya se payment lo".
+    if re.search(r"\b(payment|pay|qr|paisa|paise|bill|pay ment)\b", low) and re.search(
+            r"\b(take|collect|request|ask|send|get|chase|remind|lo|le|maango|mango|maang|bhejo|bhej|do)\b", low):
+        customers = list(db.scalars(select(Customer).where(Customer.business_id == business_id)).all())
+        words = voice_text._tokens(low)
+        named = [c for c in customers if voice_text._tokens(c.name)
+                 and all(any(voice_text._same(n, w) for w in words) for n in voice_text._tokens(c.name))]
+        code_match = re.search(r"\bord[- ]?(\d+)\b", low)
+        if code_match:
+            order = db.scalar(select(Order).where(Order.business_id == business_id, Order.code == f"ORD-{code_match.group(1)}"))
+        elif named and len({c.name.casefold() for c in named}) == 1:
+            # The same person can exist twice (once from a DM, once from an order); use whichever has an unpaid order.
+            order = db.scalar(select(Order).where(Order.business_id == business_id, Order.customer_id.in_([c.id for c in named]),
+                                                  Order.payment_status != "paid", Order.status != "cancelled")
+                              .order_by(Order.id.desc()))
+            if order is None:
+                raise HTTPException(status_code=404, detail=f"{named[0].name} has no unpaid orders")
+        elif named:
+            raise HTTPException(status_code=422, detail="More than one customer matches. Say the full name or the order number.")
+        else:
+            raise HTTPException(status_code=404, detail="I could not find that customer. Say the name as saved, or the order number.")
+        if order is None:
+            raise HTTPException(status_code=404, detail="I could not find that order")
+        if order.payment_status == "paid":
+            raise HTTPException(status_code=409, detail=f"{order.code} is already paid")
+        who = db.get(Customer, order.customer_id)
+        return _proposal(db, business_id, actor_id, session_id, "request_payment", {"order_id": order.id},
+                         f"Send {who.name if who else 'the customer'} the payment QR for {order.code}, {order.total_paise / 100:.0f} rupees")
+
     # 1. Reply: the message itself is taken from the original words, never rewritten.
-    match = re.search(r"\b(?:reply|send reply)\s+(?:to\s+)?(?:chat\s+)?(\w+)\s+(?:saying|with)\s+(.+)$", raw, re.I)
+    # Speech to text often mishears "saying" ("Singh", "sing") or adds a stray "to"; the connector word is optional.
+    match = re.search(r"\b(?:reply|send reply|respond)\s+(?:to\s+)?(?:chat\s+)?(?:to\s+)?(?:number\s+)?(\w+)\b[\s,.:;-]*(.+)$", raw, re.I)
     number = voice_text.word_to_int(match.group(1)) if match else None
     if match and number is not None:
-        reply = match.group(2).strip(" \"'")
+        reply = re.sub(r"^(?:saying|say|sing|singh|with|that|message)\b[\s,.:;-]*", "", match.group(2).strip(), flags=re.I).strip(" \"'")
         conv = db.get(Conversation, number)
         if conv is None or conv.business_id != business_id or not reply:
             raise HTTPException(status_code=404, detail="Chat or reply not found")
@@ -308,7 +339,7 @@ def process_command(db: Session, business_id: int, actor_id: int, session_id: st
 
     _log(db, business_id, actor_id, "unmatched", raw[:200])
     db.commit()
-    return {"type": "needs_clarification", "text": HELP_TEXT}
+    return {"type": "needs_clarification", "text": "Sorry, I did not get that. Try: open orders, how many roses are left, or say what can I say."}
 
 
 YES_WORDS = {"yes", "yeah", "yep", "yas", "confirm", "confirmed", "ok", "okay", "sure", "send", "proceed",
@@ -367,6 +398,23 @@ def confirm_proposal(db: Session, business_id: int, actor_id: int, session_id: s
         from .sheet_sync_service import enqueue_sync
         enqueue_sync(db, business_id)
         result = {"type": "completed", "text": f"Order {order.code} marked {order.status}.", "order_id": order.id}
+    elif row.action == "request_payment":
+        order = db.get(Order, row.payload["order_id"])
+        if order is None or order.business_id != business_id:
+            raise HTTPException(status_code=404, detail="Order not found")
+        sent = payment_service.notify_customer(db, order)
+        who = db.get(Customer, order.customer_id)
+        link = sent.get("payment_link")
+        if link and sent["status"] in {"ready_to_share", "failed"}:
+            # Not delivered over Instagram or WhatsApp: put the QR link in the customer's chat so it is ready to send.
+            conv = db.scalar(select(Conversation).where(Conversation.business_id == business_id,
+                                                        Conversation.customer_id == order.customer_id)
+                             .order_by(Conversation.last_message_at.desc()).limit(1))
+            if conv is not None:
+                conversation_service.add_message(db, conv, "out", "owner",
+                    f"Payment for order {order.code}, ₹{order.total_paise / 100:.2f}. Scan the QR or open: {link}")
+        result = {"type": "completed", "order_id": order.id, "payment_link": link,
+                  "text": f"Payment request for {order.code}" + (f" to {who.name}" if who else "") + ". " + sent["message"]}
     elif row.action == "send_reply":
         conv = db.get(Conversation, row.payload["conversation_id"])
         if conv is None or conv.business_id != business_id:
