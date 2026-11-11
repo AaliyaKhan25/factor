@@ -545,5 +545,5 @@ Factor is entered in seven categories of the Gnani.ai Great Indian AI Internship
 
 <p align="center">
   <b>factor.</b> because the person running the business should not have to stop packing to type.<br>
-  Built for the <b>Gnani.ai Great Indian AI Internship Challenge</b> by <b>Aaliya Khan</b> (SGSITS Indore) and team.
+  Built for the <b>Gnani.ai Great Indian AI Internship Challenge</b> by <b>Aaliya Khan</b> (SGSITS Indore) and <b>Devansh Paliwal</b>.
 </p>
