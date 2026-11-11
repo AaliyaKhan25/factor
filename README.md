@@ -259,6 +259,6 @@ Send replies and payment QRs through Meta once approved · one-click "Connect Go
 <p align="center"><img src="docs/assets/divider.svg" width="100%" alt=""></p>
 
 <p align="center">
-  <b>factor.</b> because the person running the business should not have to stop packing to type.<br>
-  Built for the BharatCode Build League by <b>Aaliya Khan</b> (SGSITS Indore) and team.
+  <b>factor.</b> Because the person running the business should not have to stop creating to type.<br>
+  Built for the Great Indian AI Internship Challenge using GNANI AI (STT+TTS) by <b>Aaliya Khan</b> (SGSITS Indore) and Devansh Paliwal (SGSITS, Indore).
 </p>
