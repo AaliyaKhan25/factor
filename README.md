@@ -29,9 +29,11 @@
 
 ## 🧡 The problem
 
-Millions of Indian small businesses sell through **Instagram and WhatsApp DMs**. One person answers every message, writes orders in a notebook, chases payments, packs parcels, and replies to *"where is my order?"* all day. Usually with one hand free, and often in **Hindi or Hinglish**.
+Across India, millions of small sellers live inside Instagram and WhatsApp DMs. One person replies to every message, jots orders in a notebook, chases payments, packs parcels, and answers “Where is my order?” all day, usually one-handed, usually in Hindi or Hinglish.
 
-Existing tools are built for typing, in English, at a desk. The seller is standing at a packing table.
+We’ve wanted to build voice-first workflow management for them from the start. Gnani.ai is what made it possible, and this hackathon gave us the push to build it. It’s not a weekend experiment. We’re launching it live, and Gnani.ai is coming with us to production.
+
+Existing tools are built for typing, in English, at a desk. The seller is standing at a packing table. Factor is your personal **Intern**, who will follow your instructions, manage the customers without asking anything in return AND the best part is, it never gets tired and never asks for leave.
 
 > **Factor turns DMs into orders, and lets the owner run everything with their voice.**
 > Tap the mic. Speak. Factor does it, reads it back, and waits for a spoken **yes**.
