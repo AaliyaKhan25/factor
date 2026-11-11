@@ -28,7 +28,7 @@
 
 ## The Problem
 
-Across India, millions of small sellers live inside Instagram and WhatsApp DMs. One person replies to every message, jots orders in a notebook, chases payments, packs parcels, and answers “Where is my order?” all day, usually one-handed, usually in Hindi or Hinglish.
+Across India, millions of small sellers live inside Instagram and WhatsApp DMs. One person replies to every message, jots orders in a notebook, chases payments, packs parcels, and answers “Where is my order?” all day and sometimes even misses the actually worthy orders only because the business is usually run single-handedly and answering same DMs all the time in Hindi, English or Hinglish is frustrating.
 
 We’ve wanted to build voice-first workflow management for them from the start. Gnani.ai is what made it possible, and this hackathon gave us the push to build it. It’s not a weekend experiment. We’re launching it live, and Gnani.ai is coming with us to production.
 
