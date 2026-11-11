@@ -197,11 +197,6 @@ npm install
 npm run dev
 ```
 
-Open <http://localhost:3000>. API docs are at <http://localhost:8000/docs>.
-
-<details>
-<summary><b> Environment variables (<code>apps/api/.env</code>)</b></summary>
-
 | Variable | Purpose |
 |---|---|
 | `GNANI_API_KEY` | Your Gnani Vachana key. **Server only.** Never commit it or put it in the web app. |
