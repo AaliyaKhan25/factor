@@ -12,7 +12,6 @@
   <img alt="Next.js" src="https://img.shields.io/badge/Next.js%2014-1c2415?style=flat-square&logo=nextdotjs&logoColor=c5f26a">
   <img alt="Tailwind" src="https://img.shields.io/badge/Tailwind-1c2415?style=flat-square&logo=tailwindcss&logoColor=c5f26a">
   <img alt="PWA" src="https://img.shields.io/badge/Installable%20PWA-1c2415?style=flat-square&logoColor=c5f26a">
-  <img alt="BharatCode" src="https://img.shields.io/badge/BharatCode-Build%20League-3d5a0f?style=flat-square">
 </p>
 
 <p align="center">
@@ -29,11 +28,12 @@
 
 ## The Problem
 
-Across India, millions of small sellers live inside Instagram and WhatsApp DMs. One person replies to every message, jots orders in a notebook, chases payments, packs parcels, and answers “Where is my order?” all day, usually one-handed, usually in Hindi or Hinglish.
+Across India, millions of small sellers live inside Instagram and WhatsApp DMs. One person replies to every message, jots orders in a notebook, chases payments, packs parcels, and answers “Where is my order?” all day and sometimes even misses the actually worthy orders only because the business is usually run single-handedly and answering same DMs all the time in Hindi, English or Hinglish is frustrating.
 
 We’ve wanted to build voice-first workflow management for them from the start. Gnani.ai is what made it possible, and this hackathon gave us the push to build it. It’s not a weekend experiment. We’re launching it live, and Gnani.ai is coming with us to production.
 
-Existing tools are built for typing, in English, at a desk. The seller is standing at a packing table. Factor is your personal assistant. It follows your instructions, manages your customers on your behalf, and works around the clock without ever asking for a break, a salary, or a day off.
+Existing tools are built for typing, in English, at a desk. The seller is standing at a packing table. 
+BUT Factor is your personal assistant. It follows your instructions, manages your customers on your behalf, and works around the clock without ever asking for a break, a salary, or a day off.
 
 > **Factor turns DMs into orders, and lets the owner run everything with their voice.**
 > Tap the mic. Speak. Factor does it, reads it back, and waits for a spoken **yes**.
@@ -42,7 +42,7 @@ Existing tools are built for typing, in English, at a desk. The seller is standi
 
 <p align="center"><img src="docs/assets/divider.svg" width="100%" alt=""></p>
 
-## 🎙️ Gnani.ai voice: the heart of Factor
+## Gnani.ai voice: the heart of Factor
 
 Voice is not a feature added on top. It is the main way to use the app, built on **Gnani.ai's Vachana APIs**.
 
@@ -51,9 +51,9 @@ Voice is not a feature added on top. It is the main way to use the app, built on
 | Gnani capability | How Factor uses it |
 |---|---|
 | 🎧 **Speech-to-text** · Vachana STT v3 (`prisma-v3.0`) | The seller speaks in Hindi, English or Hinglish. Audio goes from the browser to our API, which calls Gnani and returns the transcript. |
-| 🔤 **Output formats** · `transliterate`, `codemix` | By default, English words came back in Devanagari ("हाउ मेनी रोजेस आर लेफ्ट") and commands failed. Asking Gnani for transliterated output returns clean Latin text the command engine can read. Set with `GNANI_STT_FORMAT`. |
-| 🌐 **Indic auto language detection** | No language picker. The seller can switch between Hindi and English mid-sentence. |
-| 🔊 **Text-to-speech** · Timbre v2.5 | Answers, read-backs, confirmations and **every error message** are spoken aloud. |
+| **Output formats** · `transliterate`, `codemix` | By default, English words came back in Devanagari ("हाउ मेनी रोजेस आर लेफ्ट") and commands failed. Asking Gnani for transliterated output returns clean Latin text the command engine can read. Set with `GNANI_STT_FORMAT`. |
+| **Indic auto language detection** | No language picker. The seller can switch between Hindi and English mid-sentence. |
+| **Text-to-speech** · Timbre v2.5 | Answers, read-backs, confirmations and **every error message** are spoken aloud. |
 
 ### What you can say
 
@@ -98,7 +98,7 @@ Only the server holds the Gnani API key. The browser never sees it.
 <p align="center"><img src="docs/assets/features.svg" width="100%" alt="Voice control, smart inbox, orders and catalog, UPI payments, courier tracking, inventory ledger, Google Sheets, team and access"></p>
 
 <details>
-<summary><b>📥 Inbox that works for you</b></summary>
+<summary><b> Inbox that works for you</b></summary>
 
 - Instagram and WhatsApp messages arrive through **Meta webhooks**, with signature verification.
 - A **rule-based agent** answers standard questions (price, availability, tracking) from exact catalog data, and **hands over** complaints, bargaining, custom requests and payment claims to the owner.
@@ -107,7 +107,7 @@ Only the server holds the Gnani API key. The browser never sees it.
 </details>
 
 <details>
-<summary><b>📦 Orders, catalog and inventory</b></summary>
+<summary><b> Orders, catalog and inventory</b></summary>
 
 - Ready-stock items with live quantity, and made-to-order items with capacity.
 - Orders move through a checked pipeline (new, confirmed, packed, shipped, delivered) with an evidence timeline.
@@ -116,7 +116,7 @@ Only the server holds the Gnani API key. The browser never sees it.
 </details>
 
 <details>
-<summary><b>💸 UPI payments</b></summary>
+<summary><b> UPI payments</b></summary>
 
 - Each order gets a signed payment page with a **UPI QR code**.
 - Say "take payment from Riya" and the QR goes to her chat.
@@ -124,20 +124,20 @@ Only the server holds the Gnani API key. The browser never sees it.
 </details>
 
 <details>
-<summary><b>🚚 Courier tracking</b></summary>
+<summary><b> Courier tracking</b></summary>
 
 - Attach a tracking number, update status by hand, or connect a courier.
 - **Signed courier webhooks** update tracking live. Events are HMAC-signed with a 5-minute window, and replays are ignored.
 </details>
 
 <details>
-<summary><b>📊 Google Sheets sync</b></summary>
+<summary><b> Google Sheets sync</b></summary>
 
 One-way snapshots of Orders, Inventory and Stock log to a Google Sheet, for owners who live in spreadsheets.
 </details>
 
 <details>
-<summary><b>👥 Team, access and more</b></summary>
+<summary><b> Team, access and more</b></summary>
 
 - One owner by default. Teammates join with a **business code** and get no access until the owner approves them.
 - Per-person permissions, enforced on the server. Email sign-up and **Google sign-in**.
@@ -175,7 +175,7 @@ flowchart LR
 
 <p align="center"><img src="docs/assets/divider.svg" width="100%" alt=""></p>
 
-## 🚀 Run it
+##  Run it
 
 **Backend** (Windows PowerShell shown; on Mac or Linux use `source .venv/bin/activate`):
 
@@ -262,5 +262,5 @@ Send replies and payment QRs through Meta once approved · one-click "Connect Go
 
 <p align="center">
   <b>factor.</b> Because the person running the business should not have to stop creating to type.<br>
-  Built for the Great Indian AI Internship Challenge using GNANI AI (STT+TTS) by <b>Aaliya Khan</b> (SGSITS Indore) and Devansh Paliwal (SGSITS, Indore).
+  Built for the Great Indian AI Internship Challenge using GNANI AI (STT+TTS) by <b>Aaliya Khan</b> (SGSITS Indore) and <b>Devansh Paliwal</b> (SGSITS, Indore).
 </p>
