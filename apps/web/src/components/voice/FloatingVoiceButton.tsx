@@ -25,6 +25,7 @@ export default function FloatingVoiceButton() {
   const stopped = useRef(false);
   const [phase, setPhase] = useState<Phase>("idle");
   const [level, setLevel] = useState(0);
+  const [panelOpen, setPanelOpen] = useState(false);
   const [heard, setHeard] = useState("");
   const [reply, setReply] = useState("");
   const [typing, setTyping] = useState(false);
@@ -117,8 +118,20 @@ export default function FloatingVoiceButton() {
   }
 
   function toggle() {
-    if (active) { stopped.current = true; recorder.current?.stop(); stopSpeaking(); setPhase("idle"); return; }
+    if (active) { stopSession(); return; }
+    setPanelOpen(true);
     void session();
+  }
+
+  function stopSession() {
+    stopped.current = true;
+    recorder.current?.stop();
+    stopSpeaking();
+  }
+
+  function closePanel() {
+    if (active) stopSession();
+    setPanelOpen(false);
   }
 
   function toggleReplies() {
@@ -128,39 +141,41 @@ export default function FloatingVoiceButton() {
   }
 
   return (
-    <>
-      <aside aria-label="Voice assistant" className="fixed bottom-20 right-4 z-40 flex max-w-[min(22rem,calc(100vw-2rem))] flex-col items-end gap-2 md:bottom-6 md:right-6">
-        {(active || heard || reply) ? (
-          <div className="w-full rounded-2xl border border-line bg-white p-3 text-sm shadow-hover" role="status" aria-live="polite">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-brand-dark">{LABEL[phase]}</p>
-            {heard ? <p className="mt-1 text-xs text-stone-500">You: “{heard}”</p> : null}
-            {reply ? <p className="mt-1 leading-snug">{reply}</p> : null}
-            {!active ? <p className="mt-2 text-[11px] text-stone-500">Try: “open orders”, “how many roses are left”, “give me a summary”, “what can I say”.</p> : null}
-            <div className="mt-2 flex items-center gap-3 text-[11px] text-stone-500">
-              <button type="button" className="underline" onClick={toggleReplies}>{voiceReplies ? "Mute spoken replies" : "Unmute spoken replies"}</button>
-              <button type="button" className="underline" onClick={() => setTyping(true)}>Type instead</button>
-            </div>
+    <aside aria-label="Voice assistant" className="fixed bottom-20 right-4 z-40 md:bottom-6 md:right-6">
+      {panelOpen ? <section className="w-[min(21rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-line bg-white shadow-hover" role="status" aria-live="polite">
+        <header className="flex items-center justify-between border-b border-line bg-cream/70 px-3 py-2.5">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand-dark">
+              <span className={`voice-wave ${active ? "voice-wave-moving" : "voice-wave-idle"} ${phase === "listening" ? "voice-wave-listening" : ""}`} aria-hidden="true">
+                {[0.3, 0.55, 0.85, 0.58, 1, 0.62, 0.9, 0.5, 0.34].map((weight, index) => {
+                  const height = phase === "listening" ? 4 + Math.round(level * 18 * weight) : 4 + Math.round(weight * 10);
+                  return <span key={index} className="voice-wave-bar" style={{ height, animationDelay: `${index * 65}ms` }} />;
+                })}
+              </span>
+            </span>
+            <span className="min-w-0"><strong className="block text-sm leading-tight">Gnani AI</strong><small className="block truncate text-[11px] text-stone-500">{LABEL[phase]}</small></span>
           </div>
-        ) : null}
-        <button
-          type="button"
-          onClick={toggle}
-          aria-pressed={active}
-          aria-label={active ? "Stop voice assistant" : "Start voice assistant"}
-          title="Voice assistant. Tap, then speak."
-          className="group flex items-center gap-2.5 rounded-full border border-white/10 bg-ink px-4 py-3 text-white shadow-hover transition-all duration-300 hover:scale-105 active:scale-95"
-        >
-          <span className="relative grid h-9 w-9 place-items-center rounded-full bg-brand text-brand-dark shadow-glow">
-            <span className={`absolute rounded-full bg-brand/40 ${phase === "listening" ? "animate-ping" : ""}`} style={{ inset: `${-4 - Math.round(level * 8)}px` }} />
-            <Icon name="mic" className="relative z-10 h-4 w-4" />
-          </span>
-          <span className="text-left">
-            <span className="block text-xs font-bold leading-tight">{active ? LABEL[phase] : "Voice"}</span>
-            <span className="block text-[10px] font-medium text-brand">{active ? "Tap to stop" : "Tap and speak"}</span>
-          </span>
-        </button>
-      </aside>
+          <button type="button" onClick={closePanel} className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-xl leading-none text-stone-500 hover:bg-stone-100 hover:text-ink" aria-label="Close voice assistant" title="Close voice assistant">×</button>
+        </header>
+        <div className="space-y-2.5 p-3">
+          {heard ? <p className="text-xs text-stone-500"><b className="mr-1.5 uppercase tracking-wide">You said</b>“{heard}”</p> : null}
+          {reply ? <p className="rounded-xl bg-cream p-2.5 text-sm leading-snug">{reply}</p> : null}
+          {!active && !heard && !reply ? <p className="text-xs leading-relaxed text-stone-500">Try “open orders”, “how many roses are left”, “give me a summary”, or “what can I say”.</p> : null}
+          <div className="flex items-center justify-between gap-3 border-t border-line pt-2 text-[11px] text-stone-500">
+            <button type="button" className="underline underline-offset-2" onClick={toggleReplies}>{voiceReplies ? "Mute spoken replies" : "Unmute spoken replies"}</button>
+            <button type="button" className="underline underline-offset-2" onClick={() => setTyping(true)}>Type instead</button>
+          </div>
+          {!active ? <button type="button" onClick={() => void session()} className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand px-3 py-2 text-sm font-bold text-brand-dark hover:bg-brand-hover"><Icon name="mic" size={16}/>Speak again</button> : null}
+        </div>
+      </section> : <button
+        type="button"
+        onClick={toggle}
+        aria-pressed={false}
+        aria-label="Open voice assistant and speak"
+        title="Voice assistant · Tap and speak"
+        className="grid h-14 w-14 place-items-center rounded-full border border-white/20 bg-ink text-brand shadow-hover transition-all duration-200 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/40"
+      ><Icon name="mic" className="h-5 w-5" /></button>}
       {typing ? <VoiceOrderModal onClose={() => setTyping(false)} onOrderCreated={() => window.dispatchEvent(new Event("factor:changed"))} /> : null}
-    </>
+    </aside>
   );
 }
